@@ -1,0 +1,16 @@
+# pip install -r requirements.txt
+pandas>=2.0.0
+numpy>=1.24.0
+
+GitPython>=3.1.0
+
+unidiff>=0.7.0
+
+tree-sitter>=0.20.0
+tree-sitter-language-pack>=0.1.0
+
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+ipykernel>=6.20.0
+jupyter>=1.0.0
