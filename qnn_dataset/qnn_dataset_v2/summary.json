@@ -1,0 +1,28 @@
+{
+  "input_jsonl": "c:\\Users\\Admin\\Documents\\1. UET\\lab\\VulGuardVN\\dataoutput_dataset.jsonl",
+  "output_csv": "c:\\Users\\Admin\\Documents\\1. UET\\lab\\VulGuardVN\\qnn_dataset\\qnn_dataset_v2\\qnn_features_v2.csv",
+  "out_dir": "c:\\Users\\Admin\\Documents\\1. UET\\lab\\VulGuardVN\\qnn_dataset\\qnn_dataset_v2",
+  "mode": "all",
+  "feature_config": {
+    "dim": 128,
+    "seed": 42,
+    "max_nodes": 4000,
+    "max_path_len": 8,
+    "scalar_dims": 10,
+    "use_edges": true,
+    "use_paths": true,
+    "clip_counts": 50.0,
+    "apply_log1p": true
+  },
+  "dataset_stats": {
+    "n": 1578,
+    "pos": 409,
+    "neg": 1169,
+    "pos_ratio": 0.25918884664131814,
+    "parse_fail": 0,
+    "truncated": 2,
+    "avg_nodes": 152.7281368821293,
+    "avg_edges": 151.7281368821293,
+    "avg_error_nodes": 0.34917617237008874
+  }
+}
