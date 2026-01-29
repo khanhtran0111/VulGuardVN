@@ -85,8 +85,7 @@ desktop.ini
 func/repo_cache/
 
 # Data artifacts (adjust as needed)
-data/
-datasets/
 outputs/
 reports/
 models/
+.hf_home/
