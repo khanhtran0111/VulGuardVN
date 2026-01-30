@@ -9,19 +9,24 @@ from typing import Dict, Iterable, List, Tuple
 
 
 CONFIG = {
-    "input": "../VulJ.jsonl",           # Đường dẫn đến file VulJ.jsonl
-    "outdir": "./data",                 # Thư mục output
-    "seed": 42,                         # Random seed
-    
-    "drop_tests": True,                 # Bỏ các file test
-    "strip_comments": True,             # Xóa comments
-    "drop_truncated": True,             # Bỏ code bị cắt cụt
-    "require_balanced_braces": True,    # Yêu cầu cân bằng dấu ngoặc
-    "dedup": True,                      # Loại bỏ trùng lặp
-    
+    "input": "../VulJ.jsonl",
+    "outdir": "./data",
+    "seed": 42,
+
+    "drop_tests": True,
+    "strip_comments": True,
+    "drop_truncated": True,
+    "require_balanced_braces": True,
+    "dedup": True,
+
+    "min_chars": 80,          # NEW: bỏ snippet quá ngắn (thường là noise)
+
     "train": 0.8,
     "valid": 0.1,
     "test": 0.1,
+
+    "split_stratify": True,   # NEW: stratify by label at vul_id level
+    "balance_train": "oversample",  # NEW: none | oversample | undersample
 }
 
 
@@ -47,7 +52,7 @@ def normalize_whitespace(code: str) -> str:
     return code
 
 def brace_balance_ok(code: str) -> bool:
-    """Check simple balance of braces/parens/brackets (ignoring strings is hard; best-effort)."""
+    """Best-effort balance check (still imperfect with strings)."""
     pairs = {"{": "}", "(": ")", "[": "]"}
     opens = []
     for ch in code:
@@ -62,7 +67,6 @@ def brace_balance_ok(code: str) -> bool:
     return len(opens) == 0
 
 def looks_truncated(code: str) -> bool:
-    """Heuristic truncation detector."""
     if not code or len(code) < 20:
         return True
     if SUSPICIOUS_START_RE.search(code):
@@ -72,11 +76,9 @@ def looks_truncated(code: str) -> bool:
         return True
     return False
 
-
 def is_test_path(path: str) -> bool:
     p = (path or "").replace("\\", "/").lower()
     return "/src/test/" in p or p.endswith("test.java") or "/test/" in p
-
 
 def sha1_text(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8", errors="ignore")).hexdigest()
@@ -104,7 +106,6 @@ def read_jsonl(path: str) -> Iterable[Dict]:
                 yield json.loads(line)
             except json.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSON on line {i}: {e}") from e
-            
 
 def write_jsonl(path: str, rows: List[Item]) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -131,6 +132,7 @@ def process_records(
     drop_truncated: bool,
     require_balanced_braces: bool,
     dedup: bool,
+    min_chars: int,
 ) -> Tuple[List[Item], Dict[str, int]]:
     stats = {
         "read": 0,
@@ -138,6 +140,7 @@ def process_records(
         "dropped_missing_fields": 0,
         "dropped_label_invalid": 0,
         "dropped_tests": 0,
+        "dropped_too_short": 0,
         "dropped_truncated": 0,
         "dropped_unbalanced": 0,
         "dropped_duplicate": 0,
@@ -165,7 +168,6 @@ def process_records(
         except Exception:
             stats["dropped_label_invalid"] += 1
             continue
-
         if labels not in (0, 1):
             stats["dropped_label_invalid"] += 1
             continue
@@ -180,6 +182,10 @@ def process_records(
             text = strip_java_comments(text)
         text = normalize_whitespace(text)
 
+        if min_chars and len(text) < int(min_chars):
+            stats["dropped_too_short"] += 1
+            continue
+
         if drop_truncated and looks_truncated(text):
             stats["dropped_truncated"] += 1
             continue
@@ -193,8 +199,9 @@ def process_records(
             stats["dropped_duplicate"] += 1
             continue
         seen_hashes.add(h)
-        if method and not JAVA_IDENTIFIER_RE.match(method):
-            method = ""
+
+        if method and len(method) > 200:
+            method = method[:200]
 
         item_id = f"{vul_id}:{h[:12]}"
         out.append(
@@ -214,30 +221,58 @@ def process_records(
 
     return out, stats
 
-def group_split_by_vul_id(
+def label_distribution(items: List[Item]) -> Dict[str, int]:
+    pos = sum(1 for x in items if x.labels == 1)
+    neg = len(items) - pos
+    return {"n": len(items), "pos": pos, "neg": neg}
+
+def group_by_vul_id(items: List[Item]) -> Dict[str, List[Item]]:
+    groups: Dict[str, List[Item]] = {}
+    for it in items:
+        groups.setdefault(it.vul_id, []).append(it)
+    return groups
+
+def vul_id_label(groups: Dict[str, List[Item]]) -> Dict[str, int]:
+    """Label at vul_id-level: if any sample is positive => vul_id positive."""
+    out = {}
+    for vid, rows in groups.items():
+        out[vid] = 1 if any(r.labels == 1 for r in rows) else 0
+    return out
+
+def stratified_group_split_by_vul_id(
     items: List[Item],
     train_ratio: float,
     valid_ratio: float,
     test_ratio: float,
     seed: int,
 ) -> Tuple[List[Item], List[Item], List[Item]]:
-    assert abs(train_ratio + valid_ratio + test_ratio - 1.0) < 1e6
+    assert abs(train_ratio + valid_ratio + test_ratio - 1.0) < 1e-6
 
     rng = random.Random(seed)
-    groups: Dict[str, List[Item]] ={}
-    for  it in items:
-        groups.setdefault(it.vul_id, []).append(it)
+    groups = group_by_vul_id(items)
+    vid2lab = vul_id_label(groups)
 
-    vul_ids = list(groups.keys())
-    rng.shuffle(vul_ids)
+    pos_vids = [vid for vid, lab in vid2lab.items() if lab == 1]
+    neg_vids = [vid for vid, lab in vid2lab.items() if lab == 0]
 
-    n = len(vul_ids)
-    n_train = int(n * train_ratio)
-    n_valid = int(n * valid_ratio)
-    # remainder goes to test
-    train_ids = set(vul_ids[:n_train])
-    valid_ids = set(vul_ids[n_train : n_train + n_valid])
-    test_ids = set(vul_ids[n_train + n_valid :])
+    rng.shuffle(pos_vids)
+    rng.shuffle(neg_vids)
+
+    def split_vids(vids: List[str]) -> Tuple[set, set, set]:
+        n = len(vids)
+        n_train = int(n * train_ratio)
+        n_valid = int(n * valid_ratio)
+        train_ids = set(vids[:n_train])
+        valid_ids = set(vids[n_train:n_train + n_valid])
+        test_ids = set(vids[n_train + n_valid:])
+        return train_ids, valid_ids, test_ids
+
+    pos_train, pos_valid, pos_test = split_vids(pos_vids)
+    neg_train, neg_valid, neg_test = split_vids(neg_vids)
+
+    train_ids = pos_train | neg_train
+    valid_ids = pos_valid | neg_valid
+    test_ids = pos_test | neg_test
 
     train, valid, test = [], [], []
     for vid, rows in groups.items():
@@ -250,27 +285,92 @@ def group_split_by_vul_id(
 
     return train, valid, test
 
+def plain_group_split_by_vul_id(
+    items: List[Item],
+    train_ratio: float,
+    valid_ratio: float,
+    test_ratio: float,
+    seed: int,
+) -> Tuple[List[Item], List[Item], List[Item]]:
+    assert abs(train_ratio + valid_ratio + test_ratio - 1.0) < 1e-6
 
-def label_distribution(items: List[Item]) -> Dict[str, int]:
-    pos = sum(1 for x in items if x.labels == 1)
-    neg = len(items) - pos
-    return {"n": len(items), "pos": pos, "neg": neg}
+    rng = random.Random(seed)
+    groups = group_by_vul_id(items)
+    vul_ids = list(groups.keys())
+    rng.shuffle(vul_ids)
+
+    n = len(vul_ids)
+    n_train = int(n * train_ratio)
+    n_valid = int(n * valid_ratio)
+
+    train_ids = set(vul_ids[:n_train])
+    valid_ids = set(vul_ids[n_train:n_train + n_valid])
+
+    train, valid, test = [], [], []
+    for vid, rows in groups.items():
+        if vid in train_ids:
+            train.extend(rows)
+        elif vid in valid_ids:
+            valid.extend(rows)
+        else:
+            test.extend(rows)
+    return train, valid, test
+
+def balance_train_items(items: List[Item], mode: str, seed: int) -> List[Item]:
+    mode = (mode or "none").lower()
+    if mode == "none":
+        return items
+
+    rng = random.Random(seed)
+    pos = [x for x in items if x.labels == 1]
+    neg = [x for x in items if x.labels == 0]
+    if not pos or not neg:
+        return items
+
+    if mode == "undersample":
+        k = min(len(pos), len(neg))
+        rng.shuffle(pos); rng.shuffle(neg)
+        out = pos[:k] + neg[:k]
+        rng.shuffle(out)
+        return out
+
+    if mode == "oversample":
+        # oversample minority to match majority
+        if len(pos) < len(neg):
+            minor, major = pos, neg
+            minor_label = 1
+        else:
+            minor, major = neg, pos
+            minor_label = 0
+        need = len(major) - len(minor)
+        extra = [rng.choice(minor) for _ in range(need)]
+        out = major + minor + extra
+        rng.shuffle(out)
+        return out
+
+    raise ValueError(f"Unknown balance mode: {mode}. Use none|oversample|undersample.")
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", default=CONFIG["input"], help="Path to VulJ.jsonl")
-    ap.add_argument("--outdir", default=CONFIG["outdir"], help="Output directory")
+
+    ap.add_argument("--input", default=CONFIG["input"])
+    ap.add_argument("--outdir", default=CONFIG["outdir"])
     ap.add_argument("--seed", type=int, default=CONFIG["seed"])
 
-    ap.add_argument("--drop-tests", action="store_true", default=CONFIG["drop_tests"], help="Drop src/test/ and other test paths")
-    ap.add_argument("--strip-comments", action="store_true", default=CONFIG["strip_comments"], help="Remove Java comments")
-    ap.add_argument("--drop-truncated", action="store_true", default=CONFIG["drop_truncated"], help="Drop samples that look truncated")
-    ap.add_argument("--require-balanced-braces", action="store_true", default=CONFIG["require_balanced_braces"], help="Drop brace-unbalanced samples")
-    ap.add_argument("--dedup", action="store_true", default=CONFIG["dedup"], help="Deduplicate by code hash")
+    ap.add_argument("--drop-tests", action=argparse.BooleanOptionalAction, default=CONFIG["drop_tests"])
+    ap.add_argument("--strip-comments", action=argparse.BooleanOptionalAction, default=CONFIG["strip_comments"])
+    ap.add_argument("--drop-truncated", action=argparse.BooleanOptionalAction, default=CONFIG["drop_truncated"])
+    ap.add_argument("--require-balanced-braces", action=argparse.BooleanOptionalAction, default=CONFIG["require_balanced_braces"])
+    ap.add_argument("--dedup", action=argparse.BooleanOptionalAction, default=CONFIG["dedup"])
+
+    ap.add_argument("--min-chars", type=int, default=CONFIG["min_chars"])
 
     ap.add_argument("--train", type=float, default=CONFIG["train"])
     ap.add_argument("--valid", type=float, default=CONFIG["valid"])
     ap.add_argument("--test", type=float, default=CONFIG["test"])
+
+    ap.add_argument("--split-stratify", action=argparse.BooleanOptionalAction, default=CONFIG["split_stratify"])
+    ap.add_argument("--balance-train", choices=["none", "oversample", "undersample"], default=CONFIG["balance_train"])
 
     args = ap.parse_args()
 
@@ -281,18 +381,22 @@ def main():
         drop_truncated=args.drop_truncated,
         require_balanced_braces=args.require_balanced_braces,
         dedup=args.dedup,
+        min_chars=args.min_chars,
     )
 
-    train, valid, test = group_split_by_vul_id(
-        items,
-        train_ratio=args.train,
-        valid_ratio=args.valid,
-        test_ratio=args.test,
-        seed=args.seed,
-    )
+    if args.split_stratify:
+        train, valid, test = stratified_group_split_by_vul_id(
+            items, train_ratio=args.train, valid_ratio=args.valid, test_ratio=args.test, seed=args.seed
+        )
+    else:
+        train, valid, test = plain_group_split_by_vul_id(
+            items, train_ratio=args.train, valid_ratio=args.valid, test_ratio=args.test, seed=args.seed
+        )
+
+    train_bal = balance_train_items(train, args.balance_train, seed=args.seed)
 
     os.makedirs(args.outdir, exist_ok=True)
-    write_jsonl(os.path.join(args.outdir, "train.jsonl"), train)
+    write_jsonl(os.path.join(args.outdir, "train.jsonl"), train_bal)
     write_jsonl(os.path.join(args.outdir, "valid.jsonl"), valid)
     write_jsonl(os.path.join(args.outdir, "test.jsonl"), test)
 
@@ -300,17 +404,19 @@ def main():
     for k, v in stats.items():
         print(f"{k:28s}: {v}")
 
-    print("\n=== Split label distribution ===")
+    print("\n=== Split label distribution (BEFORE train balancing) ===")
     print("train:", label_distribution(train))
     print("valid:", label_distribution(valid))
     print("test :", label_distribution(test))
+
+    if args.balance_train != "none":
+        print("\n=== Train label distribution (AFTER balancing) ===")
+        print("train_bal:", label_distribution(train_bal))
 
     print("\nWrote:")
     print(" -", os.path.join(args.outdir, "train.jsonl"))
     print(" -", os.path.join(args.outdir, "valid.jsonl"))
     print(" -", os.path.join(args.outdir, "test.jsonl"))
-    print("\nEach row contains: text (code) and labels (0/1), ready for Hugging Face Datasets/Trainer.")
-
 
 if __name__ == "__main__":
     main()
