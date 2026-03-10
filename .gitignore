@@ -89,3 +89,5 @@ func/repo_cache/
 outputs/
 reports/
 models/
+datasets/
+func/game
