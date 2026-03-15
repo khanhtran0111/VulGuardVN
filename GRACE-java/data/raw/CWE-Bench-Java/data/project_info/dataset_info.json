@@ -1,0 +1,56 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "id": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "project_slug": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "cve_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "cwe_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "cwe_name": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "github_username": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "github_repository_name": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "github_tag": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "github_url": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "advisory_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "buggy_commit_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "fix_commit_ids": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
