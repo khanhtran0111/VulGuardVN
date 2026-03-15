@@ -1,0 +1,122 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "schema_version": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "modified": {
+      "dtype": "timestamp[s]",
+      "_type": "Value"
+    },
+    "published": {
+      "dtype": "timestamp[s]",
+      "_type": "Value"
+    },
+    "aliases": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "summary": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "details": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "severity": [
+      {
+        "type": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "score": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      }
+    ],
+    "affected": [
+      {
+        "package": {
+          "ecosystem": {
+            "dtype": "string",
+            "_type": "Value"
+          },
+          "name": {
+            "dtype": "string",
+            "_type": "Value"
+          }
+        },
+        "ranges": [
+          {
+            "type": {
+              "dtype": "string",
+              "_type": "Value"
+            },
+            "events": [
+              {
+                "introduced": {
+                  "dtype": "string",
+                  "_type": "Value"
+                },
+                "fixed": {
+                  "dtype": "string",
+                  "_type": "Value"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "references": [
+      {
+        "type": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "url": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      }
+    ],
+    "database_specific": {
+      "cwe_ids": {
+        "feature": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "_type": "Sequence"
+      },
+      "severity": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "github_reviewed": {
+        "dtype": "bool",
+        "_type": "Value"
+      },
+      "github_reviewed_at": {
+        "dtype": "timestamp[s]",
+        "_type": "Value"
+      },
+      "nvd_published_at": {
+        "dtype": "timestamp[s]",
+        "_type": "Value"
+      }
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
