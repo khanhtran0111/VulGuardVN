@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from pathlib import Path
 from typing import Dict
@@ -39,8 +40,8 @@ class NumpyDataset(torch.utils.data.Dataset):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase D: train GraphCodeBERT classifier")
-    parser.add_argument("--features-dir", type=Path, default=Path("artifacts/features"))
-    parser.add_argument("--out-dir", type=Path, default=Path("artifacts/model"))
+    parser.add_argument("--features-dir", type=Path, default=Path("data/artifacts/features"))
+    parser.add_argument("--out-dir", type=Path, default=Path("model"))
     parser.add_argument("--model-name", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=3)
@@ -89,6 +90,40 @@ def save_predictions(trainer: Trainer, dataset: NumpyDataset, split: str, out_di
     np.save(out_dir / f"{split}.preds.npy", preds)
 
 
+def build_training_args(args: argparse.Namespace) -> TrainingArguments:
+    init_params = set(inspect.signature(TrainingArguments.__init__).parameters.keys())
+
+    kwargs = {
+        "output_dir": str(args.out_dir / "checkpoints"),
+        "seed": args.seed,
+        "num_train_epochs": args.epochs,
+        "per_device_train_batch_size": args.batch_size,
+        "per_device_eval_batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "weight_decay": args.weight_decay,
+        "load_best_model_at_end": True,
+        "metric_for_best_model": "f1",
+        "greater_is_better": True,
+        "logging_dir": str(args.out_dir / "logs"),
+        "logging_steps": 20,
+        "report_to": "none",
+    }
+
+    if "overwrite_output_dir" in init_params:
+        kwargs["overwrite_output_dir"] = True
+
+    if "evaluation_strategy" in init_params:
+        kwargs["evaluation_strategy"] = "epoch"
+    elif "eval_strategy" in init_params:
+        kwargs["eval_strategy"] = "epoch"
+
+    if "save_strategy" in init_params:
+        kwargs["save_strategy"] = "epoch"
+
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_params}
+    return TrainingArguments(**filtered_kwargs)
+
+
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
@@ -100,24 +135,7 @@ def main() -> None:
 
     model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=2)
 
-    training_args = TrainingArguments(
-        output_dir=str(args.out_dir / "checkpoints"),
-        overwrite_output_dir=True,
-        seed=args.seed,
-        num_train_epochs=args.epochs,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        load_best_model_at_end=True,
-        metric_for_best_model="f1",
-        greater_is_better=True,
-        logging_dir=str(args.out_dir / "logs"),
-        logging_steps=20,
-        report_to="none",
-    )
+    training_args = build_training_args(args)
 
     trainer = Trainer(
         model=model,

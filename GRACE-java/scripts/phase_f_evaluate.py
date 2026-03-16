@@ -22,10 +22,10 @@ from pipeline_common import read_jsonl
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase F: classification + retrieval evaluation")
-    parser.add_argument("--features-dir", type=Path, default=Path("artifacts/features"))
-    parser.add_argument("--model-dir", type=Path, default=Path("artifacts/model"))
-    parser.add_argument("--index-dir", type=Path, default=Path("artifacts/index"))
-    parser.add_argument("--out-dir", type=Path, default=Path("artifacts/eval"))
+    parser.add_argument("--features-dir", type=Path, default=Path("data/artifacts/features"))
+    parser.add_argument("--model-dir", type=Path, default=Path("model"))
+    parser.add_argument("--index-dir", type=Path, default=Path("index"))
+    parser.add_argument("--out-dir", type=Path, default=Path("eval"))
     parser.add_argument("--topk", type=int, default=10)
     return parser.parse_args()
 
