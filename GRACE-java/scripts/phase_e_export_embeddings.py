@@ -15,9 +15,9 @@ from pipeline_common import ensure_dir
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase E: export embeddings for retrieval")
-    parser.add_argument("--features-dir", type=Path, default=Path("artifacts/features"))
-    parser.add_argument("--model-dir", type=Path, default=Path("artifacts/model/final_model"))
-    parser.add_argument("--out-dir", type=Path, default=Path("artifacts/index"))
+    parser.add_argument("--features-dir", type=Path, default=Path("data/artifacts/features"))
+    parser.add_argument("--model-dir", type=Path, default=Path("model/final_model"))
+    parser.add_argument("--out-dir", type=Path, default=Path("index"))
     parser.add_argument("--batch-size", type=int, default=16)
     return parser.parse_args()
 

@@ -16,8 +16,8 @@ DEFAULT_MODEL = "microsoft/graphcodebert-base"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase C: tokenize for GraphCodeBERT")
-    parser.add_argument("--dataset-dir", type=Path, default=Path("artifacts/dataset"))
-    parser.add_argument("--out-dir", type=Path, default=Path("artifacts/features"))
+    parser.add_argument("--dataset-dir", type=Path, default=Path("data/artifacts/dataset"))
+    parser.add_argument("--out-dir", type=Path, default=Path("data/artifacts/features"))
     parser.add_argument("--model-name", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--max-length", type=int, default=256)
     return parser.parse_args()

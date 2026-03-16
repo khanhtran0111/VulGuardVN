@@ -97,6 +97,25 @@ def split_by_project(df: pd.DataFrame, seed: int, test_size: float, valid_size: 
     return df
 
 
+def terminal_progress_log(
+    processed: int,
+    total: int,
+    valid_pairs: int,
+    filtered_rows: int,
+    interval: int,
+    force: bool = False,
+) -> None:
+    if total <= 0:
+        return
+    if not force and processed % interval != 0 and processed != total:
+        return
+    pct = (processed / total) * 100.0
+    print(
+        f"[Phase B] {processed}/{total} ({pct:.1f}%) | valid_pairs={valid_pairs} | filtered={filtered_rows}",
+        flush=True,
+    )
+
+
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
@@ -113,8 +132,19 @@ def main() -> None:
         filtered_log_path.unlink()
 
     records: List[Dict] = []
+    total_rows = int(len(fix_info))
+    processed_rows = 0
+    valid_pairs = 0
+    filtered_rows = 0
+    progress_interval = max(1, total_rows // 20)
+
+    def log_filtered(payload: Dict) -> None:
+        nonlocal filtered_rows
+        append_log(filtered_log_path, payload)
+        filtered_rows += 1
 
     for row_idx, row in fix_info.iterrows():
+        processed_rows += 1
         project_slug = str(row["project_slug"])
         owner = str(row["github_username"])
         repo = str(row["github_repository_name"])
@@ -126,8 +156,7 @@ def main() -> None:
         method_end = row.get("method_end")
 
         if pd.isna(method_name) or pd.isna(method_start) or pd.isna(method_end):
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "missing_method_metadata",
                     "row_idx": int(row_idx),
@@ -135,14 +164,14 @@ def main() -> None:
                     "file": file_path,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         method_start = int(method_start)
         method_end = int(method_end)
         loc = method_end - method_start + 1
         if loc < args.min_loc or loc > args.max_loc:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "loc_out_of_range",
                     "row_idx": int(row_idx),
@@ -150,37 +179,37 @@ def main() -> None:
                     "loc": int(loc),
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         project_row = project_info.loc[project_slug] if project_slug in project_info.index else None
         if project_row is None:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "missing_project_row",
                     "row_idx": int(row_idx),
                     "project_slug": project_slug,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         buggy_commit = str(row["commit"])
         fixed_commit = choose_fixed_commit(project_row)
         if not fixed_commit:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "missing_fixed_commit",
                     "row_idx": int(row_idx),
                     "project_slug": project_slug,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         buggy_text = fetch_file_text(owner, repo, buggy_commit, file_path, timeout=args.timeout)
         if not buggy_text:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "missing_buggy_file",
                     "row_idx": int(row_idx),
@@ -189,12 +218,12 @@ def main() -> None:
                     "file": file_path,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         fixed_text = fetch_file_text(owner, repo, fixed_commit, file_path, timeout=args.timeout)
         if not fixed_text:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "missing_fixed_file",
                     "row_idx": int(row_idx),
@@ -203,13 +232,13 @@ def main() -> None:
                     "file": file_path,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         buggy_method = slice_by_lines(buggy_text, method_start, method_end)
         fixed_method = slice_by_lines(fixed_text, method_start, method_end)
         if not buggy_method or not fixed_method:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "cannot_slice_method",
                     "row_idx": int(row_idx),
@@ -219,11 +248,11 @@ def main() -> None:
                     "method_end": method_end,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         if buggy_method == fixed_method:
-            append_log(
-                filtered_log_path,
+            log_filtered(
                 {
                     "reason": "no_change_after_fix",
                     "row_idx": int(row_idx),
@@ -231,6 +260,7 @@ def main() -> None:
                     "file": file_path,
                 },
             )
+            terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
             continue
 
         pair_id = stable_id(
@@ -256,10 +286,11 @@ def main() -> None:
 
         records.append({**base_meta, "sample_id": f"{pair_id}-vuln", "label": 1, "code": buggy_method})
         records.append({**base_meta, "sample_id": f"{pair_id}-fixed", "label": 0, "code": fixed_method})
+        valid_pairs += 1
+        terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval)
 
-        if row_idx % 100 == 0 and row_idx > 0:
-            print(f"Processed {row_idx} fix rows...")
-            time.sleep(0.01)
+    terminal_progress_log(processed_rows, total_rows, valid_pairs, filtered_rows, progress_interval, force=True)
+    time.sleep(0.01)
 
     if not records:
         raise RuntimeError("No valid records produced in Phase B.")
