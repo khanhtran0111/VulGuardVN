@@ -1,0 +1,42 @@
+id,description,expected_label,code,pred_id,pred_label,prob_LABEL_0,prob_LABEL_1
+1,SQL Injection - vulnerable,vulnerable,"public boolean login(String username, String password, Connection conn) throws Exception {
+    String sql = ""SELECT * FROM users WHERE username = '"" + username + ""' AND password = '"" + password + ""'"";
+    Statement st = conn.createStatement();
+    ResultSet rs = st.executeQuery(sql);
+    return rs.next();
+}",1,LABEL_1,0.43841254711151123,0.5615874528884888
+2,SQL Injection - safe with PreparedStatement,non-vulnerable,"public boolean login(String username, String password, Connection conn) throws Exception {
+    String sql = ""SELECT * FROM users WHERE username = ? AND password = ?"";
+    PreparedStatement ps = conn.prepareStatement(sql);
+    ps.setString(1, username);
+    ps.setString(2, password);
+    ResultSet rs = ps.executeQuery();
+    return rs.next();
+}",1,LABEL_1,0.4289356470108032,0.5710644125938416
+3,Path traversal - vulnerable,vulnerable,"public String readFile(String name) throws Exception {
+    File file = new File(""/app/data/"" + name);
+    BufferedReader br = new BufferedReader(new FileReader(file));
+    return br.readLine();
+}",1,LABEL_1,0.4566207230091095,0.5433792471885681
+4,Path traversal - safe normalize path,non-vulnerable,"public String readFile(String name) throws Exception {
+    Path base = Paths.get(""/app/data"").toRealPath();
+    Path target = base.resolve(name).normalize();
+    if (!target.startsWith(base)) {
+        throw new SecurityException(""invalid path"");
+    }
+    return Files.readString(target);
+}",1,LABEL_1,0.47189852595329285,0.5281014442443848
+5,Command injection - vulnerable,vulnerable,"public void ping(String host) throws Exception {
+    Runtime.getRuntime().exec(""ping "" + host);
+}",1,LABEL_1,0.44893115758895874,0.5510688424110413
+6,Command execution - safer fixed command shape,non-vulnerable,"public void ping() throws Exception {
+    new ProcessBuilder(""ping"", ""127.0.0.1"").start();
+}",1,LABEL_1,0.4550882577896118,0.5449117422103882
+7,Hard-coded password,vulnerable,"public Connection getConn() throws Exception {
+    String password = ""admin123"";
+    return DriverManager.getConnection(""jdbc:mysql://localhost/test"", ""root"", password);
+}",1,LABEL_1,0.4581851363182068,0.5418148636817932
+8,Password from environment,non-vulnerable,"public Connection getConn() throws Exception {
+    String password = System.getenv(""DB_PASSWORD"");
+    return DriverManager.getConnection(""jdbc:mysql://localhost/test"", ""root"", password);
+}",1,LABEL_1,0.4616429805755615,0.5383570194244385
