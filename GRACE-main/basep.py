@@ -1,4 +1,4 @@
-import openai
+from openai import OpenAI
 import pandas as pd
 from tqdm import tqdm
 import os
@@ -6,8 +6,8 @@ import json
 import csv
 import logging
 
-openai.api_base = ""
-openai.api_key = ""
+api_key="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"
+client = OpenAI(api_key=api_key)
 
 templates = {
     1: 'In the above code snippet, check for potential security vulnerabilities and output either \'Vulnerable\' or \'Non-vulnerable\'. '
@@ -29,7 +29,7 @@ logger.addHandler(fh)
 
 
 def main():
-    with open('F:/pycharmfile/vulllm/devign_data/devign_test_processed.json', 'r') as f:
+    with open('devign_test_processed.json', 'r') as f:
         data = json.load(f)
 
     def calculate_metrics(predictions, ground_truth):
@@ -65,11 +65,10 @@ def main():
         if 'edge' in row:
             inputedge = row['edge'][:2000]
         if 'func' in row:
-            inputex = row['example'][:4000]
+            # inputex = row['example'][:4000]
 
-
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": format(inputCode)+templates[1]}
                 ]
