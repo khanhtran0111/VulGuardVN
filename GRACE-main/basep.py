@@ -1,4 +1,5 @@
-from openai import OpenAI
+import os
+from google import genai
 import pandas as pd
 from tqdm import tqdm
 import os
@@ -6,8 +7,10 @@ import json
 import csv
 import logging
 
-api_key="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"
-client = OpenAI(api_key=api_key)
+GEMINI_MODEL = "gemini-3-flash-preview"
+API_KEY = os.environ["GOOGLE_API_KEY"]
+# API_KEY = ""
+client = genai.Client(api_key=API_KEY)
 
 templates = {
     1: 'In the above code snippet, check for potential security vulnerabilities and output either \'Vulnerable\' or \'Non-vulnerable\'. '
@@ -67,13 +70,15 @@ def main():
         if 'func' in row:
             # inputex = row['example'][:4000]
 
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "user", "content": format(inputCode)+templates[1]}
-                ]
+
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=format(inputCode)+templates[1]
             )
-            prediction = response['choices'][0]['message']['content']
+
+            print(response.text)
+
+            prediction = response.text
             print(prediction)
 
             with open('devignresultsgpt4.csv', 'a', newline='') as f:
