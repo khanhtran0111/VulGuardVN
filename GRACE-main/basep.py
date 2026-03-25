@@ -1,4 +1,5 @@
-import openai
+import os
+from google import genai
 import pandas as pd
 from tqdm import tqdm
 import os
@@ -6,8 +7,10 @@ import json
 import csv
 import logging
 
-openai.api_base = ""
-openai.api_key = ""
+GEMINI_MODEL = "gemini-3-flash-preview"
+API_KEY = os.environ["GOOGLE_API_KEY"]
+# API_KEY = ""
+client = genai.Client(api_key=API_KEY)
 
 templates = {
     1: 'In the above code snippet, check for potential security vulnerabilities and output either \'Vulnerable\' or \'Non-vulnerable\'. '
@@ -29,7 +32,7 @@ logger.addHandler(fh)
 
 
 def main():
-    with open('F:/pycharmfile/vulllm/devign_data/devign_test_processed.json', 'r') as f:
+    with open('devign_test_processed.json', 'r') as f:
         data = json.load(f)
 
     def calculate_metrics(predictions, ground_truth):
@@ -65,16 +68,17 @@ def main():
         if 'edge' in row:
             inputedge = row['edge'][:2000]
         if 'func' in row:
-            inputex = row['example'][:4000]
+            # inputex = row['example'][:4000]
 
 
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "user", "content": format(inputCode)+templates[1]}
-                ]
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=format(inputCode)+templates[1]
             )
-            prediction = response['choices'][0]['message']['content']
+
+            print(response.text)
+
+            prediction = response.text
             print(prediction)
 
             with open('devignresultsgpt4.csv', 'a', newline='') as f:
