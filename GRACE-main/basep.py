@@ -8,8 +8,8 @@ import csv
 import logging
 
 GEMINI_MODEL = "gemini-3-flash-preview"
-API_KEY = os.environ["GOOGLE_API_KEY"]
-# API_KEY = ""
+#API_KEY = os.environ["GOOGLE_API_KEY"]
+API_KEY = "AIzaSyAOU-warIAzL4SIuvFoj7DgViIU5QGp8ws"
 client = genai.Client(api_key=API_KEY)
 
 templates = {
