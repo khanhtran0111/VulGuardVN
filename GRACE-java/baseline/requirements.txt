@@ -1,0 +1,8 @@
+faiss-cpu
+javalang
+numpy
+openai
+python-Levenshtein
+scikit-learn
+torch
+transformers
