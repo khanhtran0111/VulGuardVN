@@ -1,4 +1,4 @@
-# GRACE-Java baseline (Python-first, GraphCodeBERT default)
+# GRACE-Java baseline
 
 Mục tiêu của bộ script này là dựng baseline kiểu GRACE cho Java theo pipeline:
 
@@ -43,7 +43,7 @@ Gợi ý nhanh để smoke test:
 python 01_split_dataset.py --source cwe-bench --data-dir ../data/CWE-Bench-Java/data --max-samples 200 --out-dir ../work/splits
 ```
 
-Luu y: `--max-samples` cat theo thu tu CSV, co the gay lech nhan o tap nho. Dung cho smoke test, khong dung de ket luan chinh.
+Lưu ý: `--max-samples` cắt theo thứ tự CSV, có thể gây lệch nhãn ở tập nhỏ. Dùng cho smoke test, không dùng để kết luận chính.
 
 ## 3) Chạy pipeline baseline
 
@@ -70,7 +70,7 @@ Mặc định quan trọng:
 - `--model-name microsoft/graphcodebert-base`
 - `--pooling mean`
 
-Tuỳ chọn hay dùng:
+Tùy chọn hay dùng:
 
 - `--pooling cls`
 - `--index-type ivf` khi train set lớn
@@ -88,7 +88,7 @@ python 04_retrieve_demo.py --input ../work/test_ast.jsonl --index-dir ../work/re
 python 05_run_joern_per_sample.py --input ../work/test_with_demo.jsonl --output ../work/test_with_joern.jsonl
 ```
 
-Neu Joern khong nam trong PATH:
+Nếu Joern không nằm trong PATH:
 
 - `--joern-parse <path_to_joern_parse>`
 - `--joern-export <path_to_joern_export>`
@@ -107,18 +107,23 @@ python 07_build_prompt_dataset.py --input ../work/test_graph_text.jsonl --output
 
 ### Bước G. Inference
 
-Dry-run:
+
+Gemini (đọc từ `.env`):
 
 ```bash
-python 08_run_baseline_inference.py --input ../work/test_prompts.jsonl --output ../work/test_predictions.jsonl --provider dry_run
+python 08_run_baseline_inference.py --input ../work/test_prompts.jsonl --output ../work/test_predictions.jsonl --provider gemini
 ```
 
-OpenAI:
+Gemini (ép model bằng CLI):
 
 ```bash
-set OPENAI_API_KEY=YOUR_KEY
-python 08_run_baseline_inference.py --input ../work/test_prompts.jsonl --output ../work/test_predictions.jsonl --provider openai --model gpt-4.1
+python 08_run_baseline_inference.py --input ../work/test_prompts.jsonl --output ../work/test_predictions.jsonl --provider gemini --model gemini-2.5-flash
 ```
+
+Yêu cầu cho Gemini:
+
+- File `.env` ở thư mục `GRACE-java` có `GEMINI_API` (bắt buộc).
+- `GEMINI_MODEL` là tùy chọn; nếu không có thì script dùng mặc định `gemini-2.5-flash`.
 
 ### Bước H. Evaluate
 
@@ -126,7 +131,161 @@ python 08_run_baseline_inference.py --input ../work/test_prompts.jsonl --output 
 python 09_evaluate.py --input ../work/test_predictions.jsonl
 ```
 
-## 4) Smoke test tối thiểu để kiểm tra GraphCodeBERT chạy được
+## 4) Từng file dùng để làm gì
+
+Phần này giải thích nhanh vai trò của mỗi script trong baseline.
+
+### `01_split_dataset.py`
+
+Chức năng: Tạo train/val/test split có ý thức leakage (group-aware split theo project hoặc field nhóm).
+
+Mục đích: Đảm bảo retrieval database và tập test không bị trộn dữ liệu gần nhau một cách ngẫu nhiên.
+
+Đầu ra chính:
+
+- `work/splits/train.jsonl`
+- `work/splits/val.jsonl`
+- `work/splits/test.jsonl`
+- `work/splits/all_with_split.jsonl`
+
+Phục vụ bước nào: Là đầu vào cho `02_build_ast_seq.py`.
+
+### `02_build_ast_seq.py`
+
+Chức năng: Parse Java code bằng `javalang` và sinh chuỗi AST kiểu SBT-like (`ast_seq`).
+
+Mục đích: Bổ sung tín hiệu cú pháp cho retrieval rerank (lexical + syntactic).
+
+Đầu ra chính:
+
+- `work/train_ast.jsonl`
+- `work/val_ast.jsonl`
+- `work/test_ast.jsonl`
+
+Phục vụ bước nào: `train_ast.jsonl` dùng cho build index ở `03`; `test_ast.jsonl` dùng cho retrieve ở `04`.
+
+### `03_build_retrieval_index.py`
+
+Chức năng: Encode train code thành embedding (GraphCodeBERT mặc định), whitening + normalize, sau đó build FAISS index.
+
+Mục đích: Tạo retrieval database để tìm demo gần nhất cho mỗi sample cần dự đoán.
+
+Đầu ra chính:
+
+- `work/retrieval/retrieval.index`
+- `work/retrieval/metadata.pkl`
+- `work/retrieval/stats.json`
+
+Phục vụ bước nào: `04_retrieve_demo.py` đọc index và metadata để truy hồi top-k.
+
+### `04_retrieve_demo.py`
+
+Chức năng: Encode query (val/test), tìm top-k từ FAISS, rerank, gán demo tốt nhất vào từng sample.
+
+Mục đích: Thêm demonstration phù hợp vào input để LLM suy luận tốt hơn.
+
+Đầu ra chính:
+
+- `work/test_with_demo.jsonl` (hoặc file output bạn truyền)
+
+Phục vụ bước nào: `05_run_joern_per_sample.py` và các bước prompt sau đó.
+
+### `05_run_joern_per_sample.py`
+
+Chức năng: Chạy Joern cho từng sample, export AST/CFG/PDG dạng dot.
+
+Mục đích: Lấy structural context cho graph-enhanced prompting.
+
+Đầu ra chính:
+
+- `work/test_with_joern.jsonl`
+- Thư mục dot files: `work/test_with_joern_joern/...`
+
+Phục vụ bước nào: `06_build_graph_text.py`.
+
+### `06_build_graph_text.py`
+
+Chức năng: Parse dot files và serialize thành text gọn (nodes/edges).
+
+Mục đích: Biến graph thành định dạng LLM đọc được trong prompt.
+
+Đầu ra chính:
+
+- `work/test_graph_text.jsonl`
+
+Phục vụ bước nào: `07_build_prompt_dataset.py`.
+
+### `07_build_prompt_dataset.py`
+
+Chức năng: Ghép code + graph text + demo thành prompt hoàn chỉnh.
+
+Mục đích: Tạo dữ liệu prompt-ready để gọi LLM.
+
+Đầu ra chính:
+
+- `work/test_prompts.jsonl`
+
+Phục vụ bước nào: `08_run_baseline_inference.py`.
+
+### `08_run_baseline_inference.py`
+
+Chức năng: Chạy LLM inference trên prompt dataset (dry-run, OpenAI hoặc Gemini).
+
+Mục đích: Tạo nhãn dự đoán `pred_label` để đánh giá.
+
+Đầu ra chính:
+
+- `work/test_predictions.jsonl`
+
+Phục vụ bước nào: `09_evaluate.py`.
+
+### `09_evaluate.py`
+
+Chức năng: Tính metric phân loại nhị phân từ file predictions.
+
+Mục đích: Tổng kết chất lượng baseline (Accuracy, Precision, Recall, F1).
+
+Đầu ra chính: In JSON metric ra màn hình.
+
+Phục vụ bước nào: Báo cáo kết quả và so sánh ablation.
+
+### Ví dụ mini (nhỏ)
+
+Mục tiêu: Kiểm tra nhanh retrieval GraphCodeBERT đã chạy thông.
+
+1. Tách 200 mẫu từ CWE-Bench-Java:
+
+```bash
+python 01_split_dataset.py --source cwe-bench --data-dir ../data/CWE-Bench-Java/data --max-samples 200 --out-dir ../work/splits
+```
+
+2. Sinh AST:
+
+```bash
+python 02_build_ast_seq.py --split all
+```
+
+3. Build index retrieval:
+
+```bash
+python 03_build_retrieval_index.py --input ../work/train_ast.jsonl --out-dir ../work/retrieval_smoke --batch-size 8 --max-length 256 --whiten-dim 64
+```
+
+4. Retrieve demo cho test:
+
+```bash
+python 04_retrieve_demo.py --input ../work/test_ast.jsonl --index-dir ../work/retrieval_smoke --output ../work/test_with_demo_smoke.jsonl --top-k 5
+```
+
+Kết quả cần có:
+
+- `work/retrieval_smoke/retrieval.index`
+- `work/retrieval_smoke/metadata.pkl`
+- `work/test_with_demo_smoke.jsonl`
+
+Nếu 3 file trên có đầy đủ, bạn đã xác nhận được retrieval stage chạy thành công và có thể đi tiếp đến Joern/prompt/inference.
+
+## 5) Smoke test tối thiểu để kiểm tra GraphCodeBERT chạy được
 
 Nếu bạn chỉ muốn xác nhận retrieval chạy trước:
 
@@ -137,24 +296,25 @@ python 03_build_retrieval_index.py --input ../work/train_ast.jsonl --out-dir ../
 python 04_retrieve_demo.py --input ../work/test_ast.jsonl --index-dir ../work/retrieval_smoke --output ../work/test_with_demo_smoke.jsonl --top-k 5
 ```
 
-Neu chay thanh cong, ban se co:
+Nếu chạy thành công, bạn sẽ có:
 
 - `work/retrieval_smoke/retrieval.index`
 - `work/retrieval_smoke/metadata.pkl`
 - `work/test_with_demo_smoke.jsonl`
 
-## 5) Ghi chú kỹ thuật
+## 6) Ghi chú kỹ thuật
 
-- Retrieval encoder trong code hien tai la GraphCodeBERT theo mac dinh.
-- AST similarity trong rerank co fallback khi thieu `python-Levenshtein`.
-- Pipeline split la group-aware, nhung van can theo doi phan bo nhan de tranh tap test qua lech.
-- Joern CLI co the khac nhe theo version; neu loi cu phap, kiem tra lai `joern-export --help`.
+- Retrieval encoder trong code hiện tại là GraphCodeBERT theo mặc định.
+- AST similarity trong rerank có fallback khi thiếu `python-Levenshtein`.
+- Pipeline split là group-aware, nhưng vẫn cần theo dõi phân bố nhãn để tránh tập test quá lệch.
+- Joern CLI có thể khác nhẹ theo version; nếu lỗi cú pháp, kiểm tra lại `joern-export --help`.
+- Inference hỗ trợ `--provider gemini`; script sẽ tự đọc `GEMINI_API`/`GEMINI_MODEL` từ `GRACE-java/.env`.
 
-## 6) Checklist khi chạy thực nghiệm chính thức
+## 7) Checklist khi chạy thực nghiệm chính thức
 
-Truoc khi chot ket qua benchmark:
+Trước khi chốt kết quả benchmark:
 
-1. Khong dung `--max-samples`.
-2. Xac nhan train/val/test co ca 2 nhan 0/1.
-3. Log ro model retrieval, pooling, index type, whiten dim.
-4. Co dinh split protocol va prompt template de so sanh cong bang.
+1. Không dùng `--max-samples`.
+2. Xác nhận train/val/test có cả 2 nhãn 0/1.
+3. Log rõ model retrieval, pooling, index type, whiten dim.
+4. Cố định split protocol và prompt template để so sánh công bằng.
