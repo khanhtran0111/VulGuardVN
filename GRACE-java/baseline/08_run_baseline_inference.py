@@ -134,10 +134,10 @@ def main() -> None:
             raw = call_gemini(prompt, model_name, gemini_api_key)
             pred = parse_binary_label(raw)
 
-        out = dict(row)
-        out["model_name"] = model_name
-        out["raw_response"] = raw
-        out["pred_label"] = pred
+        out = {
+            "raw_response": raw,
+            "pred_label": pred,
+        }
         outputs.append(out)
 
     write_jsonl(args.output, outputs)

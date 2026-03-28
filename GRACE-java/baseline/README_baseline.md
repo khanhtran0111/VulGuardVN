@@ -37,14 +37,6 @@ Ví dụ:
 python 01_split_dataset.py --source cwe-bench --data-dir ../data/CWE-Bench-Java/data --out-dir ../work/splits
 ```
 
-Gợi ý nhanh để smoke test:
-
-```bash
-python 01_split_dataset.py --source cwe-bench --data-dir ../data/CWE-Bench-Java/data --max-samples 200 --out-dir ../work/splits
-```
-
-Lưu ý: `--max-samples` cắt theo thứ tự CSV, có thể gây lệch nhãn ở tập nhỏ. Dùng cho smoke test, không dùng để kết luận chính.
-
 ## 3) Chạy pipeline baseline
 
 ### Bước A. Sinh AST sequence
@@ -248,73 +240,3 @@ Mục đích: Tổng kết chất lượng baseline (Accuracy, Precision, Recall
 Đầu ra chính: In JSON metric ra màn hình.
 
 Phục vụ bước nào: Báo cáo kết quả và so sánh ablation.
-
-### Ví dụ mini (nhỏ)
-
-Mục tiêu: Kiểm tra nhanh retrieval GraphCodeBERT đã chạy thông.
-
-1. Tách 200 mẫu từ CWE-Bench-Java:
-
-```bash
-python 01_split_dataset.py --source cwe-bench --data-dir ../data/CWE-Bench-Java/data --max-samples 200 --out-dir ../work/splits
-```
-
-2. Sinh AST:
-
-```bash
-python 02_build_ast_seq.py --split all
-```
-
-3. Build index retrieval:
-
-```bash
-python 03_build_retrieval_index.py --input ../work/train_ast.jsonl --out-dir ../work/retrieval_smoke --batch-size 8 --max-length 256 --whiten-dim 64
-```
-
-4. Retrieve demo cho test:
-
-```bash
-python 04_retrieve_demo.py --input ../work/test_ast.jsonl --index-dir ../work/retrieval_smoke --output ../work/test_with_demo_smoke.jsonl --top-k 5
-```
-
-Kết quả cần có:
-
-- `work/retrieval_smoke/retrieval.index`
-- `work/retrieval_smoke/metadata.pkl`
-- `work/test_with_demo_smoke.jsonl`
-
-Nếu 3 file trên có đầy đủ, bạn đã xác nhận được retrieval stage chạy thành công và có thể đi tiếp đến Joern/prompt/inference.
-
-## 5) Smoke test tối thiểu để kiểm tra GraphCodeBERT chạy được
-
-Nếu bạn chỉ muốn xác nhận retrieval chạy trước:
-
-```bash
-python 01_split_dataset.py --source cwe-bench --data-dir ../data/CWE-Bench-Java/data --max-samples 200 --out-dir ../work/splits
-python 02_build_ast_seq.py --split all
-python 03_build_retrieval_index.py --input ../work/train_ast.jsonl --out-dir ../work/retrieval_smoke --batch-size 8 --max-length 256 --whiten-dim 64
-python 04_retrieve_demo.py --input ../work/test_ast.jsonl --index-dir ../work/retrieval_smoke --output ../work/test_with_demo_smoke.jsonl --top-k 5
-```
-
-Nếu chạy thành công, bạn sẽ có:
-
-- `work/retrieval_smoke/retrieval.index`
-- `work/retrieval_smoke/metadata.pkl`
-- `work/test_with_demo_smoke.jsonl`
-
-## 6) Ghi chú kỹ thuật
-
-- Retrieval encoder trong code hiện tại là GraphCodeBERT theo mặc định.
-- AST similarity trong rerank có fallback khi thiếu `python-Levenshtein`.
-- Pipeline split là group-aware, nhưng vẫn cần theo dõi phân bố nhãn để tránh tập test quá lệch.
-- Joern CLI có thể khác nhẹ theo version; nếu lỗi cú pháp, kiểm tra lại `joern-export --help`.
-- Inference hỗ trợ `--provider gemini`; script sẽ tự đọc `GEMINI_API`/`GEMINI_MODEL` từ `GRACE-java/.env`.
-
-## 7) Checklist khi chạy thực nghiệm chính thức
-
-Trước khi chốt kết quả benchmark:
-
-1. Không dùng `--max-samples`.
-2. Xác nhận train/val/test có cả 2 nhãn 0/1.
-3. Log rõ model retrieval, pooling, index type, whiten dim.
-4. Cố định split protocol và prompt template để so sánh công bằng.
