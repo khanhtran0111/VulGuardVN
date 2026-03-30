@@ -6,8 +6,9 @@ from pathlib import Path
 
 from common import WORK_DIR, load_jsonl, write_jsonl
 
-NODE_RE = re.compile(r'^\s*"(?P<id>[^"]+)"\s*\[label\s*=\s*"(?P<label>.*)"\s*\]')
-EDGE_RE = re.compile(r'^\s*"(?P<src>[^"]+)"\s*->\s*"(?P<dst>[^"]+)"')
+NODE_RE_QUOTED = re.compile(r'^\s*"(?P<id>[^"]+)"\s*\[label\s*=\s*"(?P<label>.*)"\s*\]')
+NODE_RE_HTML = re.compile(r'^\s*"(?P<id>[^"]+)"\s*\[label\s*=\s*<(?P<label>.*)>\s*\]')
+EDGE_RE = re.compile(r'^\s*"(?P<src>[^"]+)"\s*->\s*"(?P<dst>[^"]+)"(?:\s*\[.*\])?\s*$')
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,7 +27,7 @@ def parse_dot(path: str | None, tag: str):
         return nodes, edges
     text = Path(path).read_text(encoding="utf-8", errors="ignore")
     for line in text.splitlines():
-        n = NODE_RE.match(line)
+        n = NODE_RE_QUOTED.match(line) or NODE_RE_HTML.match(line)
         if n:
             nodes[n.group("id")] = f"[{tag}] {n.group('label')}"
             continue

@@ -21,6 +21,13 @@ Yêu cầu thêm cho graph stage:
 
 - Đã cài Joern và gọi được `joern-parse`, `joern-export` từ command line.
 
+còn nếu chưa cài thì:
+
+```bash
+python 00_setup_joern.py
+```
+
+
 ## 2) Nguồn dữ liệu và split (quan trọng)
 
 Script `01_split_dataset.py` hỗ trợ 3 chế độ nguồn dữ liệu:
@@ -29,7 +36,6 @@ Script `01_split_dataset.py` hỗ trợ 3 chế độ nguồn dữ liệu:
 - `--source cwe-bench`: ép dùng `GRACE-java/data/CWE-Bench-Java/data`
 - `--source candidates`: ưu tiên các benchmark candidate JSON/JSONL cũ
 
-Khuyến nghị dùng rõ ràng `--source cwe-bench` để tránh trôi sang dataset không phải Java.
 
 Ví dụ:
 
@@ -240,3 +246,21 @@ Mục đích: Tổng kết chất lượng baseline (Accuracy, Precision, Recall
 Đầu ra chính: In JSON metric ra màn hình.
 
 Phục vụ bước nào: Báo cáo kết quả và so sánh ablation.
+
+## 5) Cac giai doan chay theo thu tu
+
+1. Chia du lieu train/val/test theo split co y thuc leakage.
+2. Sinh AST sequence cho tung mau Java.
+3. Build retrieval index bang GraphCodeBERT + whitening + FAISS tren tap train.
+4. Retrieve demo cho tap test/val (top-k) va rerank de chon demo tot nhat.
+5. Chay Joern cho tung sample de xuat AST/CFG/PDG dang dot.
+6. Chuyen dot graph thanh graph text gon (nodes/edges) de dua vao prompt.
+7. Ghep prompt gom: target code + graph text + retrieved demo.
+8. Chay LLM inference de du doan Vulnerable/Non-vulnerable.
+9. Danh gia ket qua bang Accuracy, Precision, Recall, F1.
+
+Tom tat luong xu ly:
+
+- Retrieval branch: code -> GraphCodeBERT embedding -> FAISS -> rerank -> demo.
+- Graph branch: code -> Joern (AST/CFG/PDG) -> graph text.
+- Prediction branch: code + graph text + demo -> LLM -> prediction -> metrics.
