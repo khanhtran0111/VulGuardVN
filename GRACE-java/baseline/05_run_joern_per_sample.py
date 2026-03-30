@@ -223,6 +223,7 @@ def main() -> None:
     joern_env = resolve_java_env(args.java_home)
     joern_parse = resolve_executable(args.joern_parse, "joern-parse")
     joern_export = resolve_executable(args.joern_export, "joern-export")
+    output_path = Path(args.output).resolve()
 
     print(f"[Joern] Java: {java_version_line(joern_env)}")
     print(f"[Joern] Java executable: {java_executable_path(joern_env)}")
@@ -231,11 +232,12 @@ def main() -> None:
 
     rows = load_jsonl(args.input)
     out_rows = []
-    base_out = ensure_dir(Path(args.output).parent / (Path(args.output).stem + "_joern"))
+    base_out = ensure_dir(output_path.parent / (output_path.stem + "_joern"))
 
     for idx, row in enumerate(rows):
         sample_id = str(row.get("sample_id", idx))
-        sample_slug = slugify(sample_id)
+        # Keep output directory unique even when long sample_id values are truncated by slugify.
+        sample_slug = f"{slugify(sample_id, max_len=64)}_{idx}"
         workdir = Path(tempfile.mkdtemp(prefix=f"joern_{sample_slug}_"))
         srcdir = ensure_dir(workdir / "src")
         class_name = f"Wrap_{sample_slug}"
