@@ -5,6 +5,7 @@ import csv
 from collections import Counter
 from pathlib import Path
 import random
+import re
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -87,16 +88,164 @@ def extract_code_snippet(row: dict[str, str], full_text: str) -> str:
     class_start = parse_line_int(row.get("class_start"))
     class_end = parse_line_int(row.get("class_end"))
 
-    if method_start and method_end and method_end >= method_start:
-        start, end = method_start, method_end
-    elif class_start and class_end and class_end >= class_start:
-        start, end = class_start, class_end
-    else:
-        start, end = 1, min(300, len(lines))
+    method_name = (row.get("method") or "").strip()
+    if method_name:
+        snippet = find_named_block(lines, method_name, kind="method", anchor_line=method_start)
+        if snippet:
+            return snippet
+        snippet = extract_hint_block(lines, method_start, method_end, kind="method", name=method_name)
+        if snippet:
+            return snippet
 
-    start_idx = max(1, start) - 1
-    end_idx = min(len(lines), end)
-    return "\n".join(lines[start_idx:end_idx]).strip()
+    class_name = (row.get("class") or "").strip()
+    if class_name:
+        snippet = find_named_block(lines, class_name, kind="class", anchor_line=class_start)
+        if snippet:
+            return snippet
+        snippet = extract_hint_block(lines, class_start, class_end, kind="class", name=class_name)
+        if snippet:
+            return snippet
+
+    return "\n".join(lines[: min(300, len(lines))]).strip()
+
+
+def _find_balanced_block(lines: list[str], start_idx: int, min_end_idx: int | None = None) -> tuple[int, int] | None:
+    brace_depth = 0
+    seen_open = False
+    for end_idx in range(start_idx, len(lines)):
+        line = lines[end_idx]
+        brace_depth += line.count("{")
+        if "{" in line:
+            seen_open = True
+        brace_depth -= line.count("}")
+        if seen_open and brace_depth <= 0 and (min_end_idx is None or end_idx + 1 >= min_end_idx):
+            return start_idx, end_idx + 1
+    return None
+
+
+def _pattern_for_block(name: str, kind: str) -> re.Pattern[str]:
+    escaped = re.escape(name)
+    if kind == "method":
+        return re.compile(rf"\b{escaped}\s*\(")
+    return re.compile(rf"\b(class|interface|enum|record)\s+{escaped}\b")
+
+
+def extract_hint_block(
+    lines: list[str],
+    start: int | None,
+    end: int | None,
+    kind: str,
+    name: str,
+) -> str:
+    if not start or not end or end < start:
+        return ""
+
+    start_idx = max(0, start - 1)
+    min_end_idx = min(len(lines), end)
+    pattern = _pattern_for_block(name, kind) if name else None
+
+    if pattern is not None:
+        search_start = max(0, start_idx - 8)
+        search_end = min(len(lines), start_idx + 8)
+        for idx in range(search_start, search_end):
+            line = lines[idx]
+            if pattern.search(line):
+                if kind == "method" and line.strip().endswith(";"):
+                    continue
+                start_idx = idx
+                break
+
+    span = _find_balanced_block(lines, start_idx, min_end_idx=min_end_idx)
+    if span is None:
+        return ""
+    block_start, block_end = span
+    snippet = "\n".join(lines[block_start:block_end]).strip()
+    return snippet
+
+
+def find_named_block(lines: list[str], name: str, kind: str, anchor_line: int | None = None) -> str:
+    if not name:
+        return ""
+
+    pattern = _pattern_for_block(name, kind)
+    candidates: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not pattern.search(line):
+            continue
+        if kind == "method" and stripped.endswith(";"):
+            continue
+        span = _find_balanced_block(lines, idx)
+        if span is None:
+            continue
+        start_idx, end_idx = span
+        snippet = "\n".join(lines[start_idx:end_idx]).strip()
+        if snippet:
+            candidates.append((idx, snippet))
+
+    if not candidates:
+        return ""
+    if anchor_line:
+        anchor_idx = max(0, anchor_line - 1)
+        candidates.sort(key=lambda item: abs(item[0] - anchor_idx))
+        return candidates[0][1]
+    return candidates[0][1]
+
+
+def dedupe_key(row: dict[str, str], commit_id: str, label: int) -> tuple[str, ...]:
+    return (
+        (row.get("project_slug") or "").strip(),
+        commit_id.strip(),
+        str(label),
+        (row.get("file") or "").strip(),
+        (row.get("class") or "").strip(),
+        (row.get("method") or "").strip(),
+        (row.get("signature") or "").strip(),
+    )
+
+
+def build_variant_row(
+    row: dict[str, str],
+    meta: dict[str, str | set[str]],
+    cache_dir: Path,
+    idx: int,
+    commit_id: str,
+    label: int,
+    variant: str,
+    source_fix_commit_id: str,
+) -> dict | None:
+    github_username = (row.get("github_username") or "").strip()
+    github_repository_name = (row.get("github_repository_name") or "").strip()
+    file_path = (row.get("file") or "").strip()
+    if not github_username or not github_repository_name or not file_path:
+        return None
+
+    full_text = fetch_raw_file_text(github_username, github_repository_name, commit_id, file_path, cache_dir)
+    if full_text is None:
+        return None
+
+    code = extract_code_snippet(row, full_text)
+    if not code:
+        return None
+
+    slug = (row.get("project_slug") or "").strip()
+    return {
+        "sample_id": f"{slug}__{variant}__{commit_id[:12]}__{idx}",
+        "project": slug,
+        "label": label,
+        "variant": variant,
+        "cwe": (row.get("cwe_id") or meta["cwe_id"] or "").strip(),
+        "code": code,
+        "file_path": file_path,
+        "class_name": (row.get("class") or "").strip(),
+        "method_name": (row.get("method") or "").strip(),
+        "signature": (row.get("signature") or "").strip(),
+        "commit_id": commit_id,
+        "source_fix_commit_id": source_fix_commit_id,
+        "project_slug": slug,
+        "cve_id": (row.get("cve_id") or "").strip(),
+        "source_dataset": "CWE-Bench-Java",
+    }
 
 
 def build_rows_from_cwe_bench_data(data_dir: Path, work_dir: Path, max_samples: int) -> tuple[list[dict], dict[str, int]]:
@@ -125,10 +274,14 @@ def build_rows_from_cwe_bench_data(data_dir: Path, work_dir: Path, max_samples: 
     stats = {
         "total_fix_rows": len(fix_rows),
         "skipped_no_meta": 0,
-        "skipped_unknown_label": 0,
         "skipped_fetch_fail": 0,
         "skipped_empty_code": 0,
+        "skipped_missing_buggy_commit": 0,
+        "skipped_duplicate": 0,
+        "emitted_buggy": 0,
+        "emitted_fixed": 0,
     }
+    seen_keys: set[tuple[str, ...]] = set()
 
     for idx, fr in enumerate(fix_rows):
         slug = (fr.get("project_slug") or "").strip()
@@ -137,50 +290,51 @@ def build_rows_from_cwe_bench_data(data_dir: Path, work_dir: Path, max_samples: 
             stats["skipped_no_meta"] += 1
             continue
 
-        commit_id = (fr.get("commit") or "").strip()
-        buggy_commit = meta["buggy_commit_id"]
-        fix_commits: set[str] = meta["fix_commit_ids"]
-        if commit_id == buggy_commit:
-            label = 1
-        elif commit_id in fix_commits:
-            label = 0
-        else:
-            stats["skipped_unknown_label"] += 1
+        fixed_commit = (fr.get("commit") or "").strip()
+        buggy_commit = str(meta["buggy_commit_id"]).strip()
+        if not buggy_commit:
+            stats["skipped_missing_buggy_commit"] += 1
             continue
 
-        github_username = (fr.get("github_username") or "").strip()
-        github_repository_name = (fr.get("github_repository_name") or "").strip()
-        file_path = (fr.get("file") or "").strip()
-        if not github_username or not github_repository_name or not file_path:
-            stats["skipped_fetch_fail"] += 1
-            continue
+        for variant, commit_id, label in [
+            ("buggy", buggy_commit, 1),
+            ("fixed", fixed_commit, 0),
+        ]:
+            key = dedupe_key(fr, commit_id, label)
+            if key in seen_keys:
+                stats["skipped_duplicate"] += 1
+                continue
 
-        full_text = fetch_raw_file_text(github_username, github_repository_name, commit_id, file_path, cache_dir)
-        if full_text is None:
-            stats["skipped_fetch_fail"] += 1
-            continue
+            row = build_variant_row(
+                row=fr,
+                meta=meta,
+                cache_dir=cache_dir,
+                idx=idx,
+                commit_id=commit_id,
+                label=label,
+                variant=variant,
+                source_fix_commit_id=fixed_commit,
+            )
+            if row is None:
+                full_text = fetch_raw_file_text(
+                    (fr.get("github_username") or "").strip(),
+                    (fr.get("github_repository_name") or "").strip(),
+                    commit_id,
+                    (fr.get("file") or "").strip(),
+                    cache_dir,
+                )
+                if full_text is None:
+                    stats["skipped_fetch_fail"] += 1
+                else:
+                    stats["skipped_empty_code"] += 1
+                continue
 
-        code = extract_code_snippet(fr, full_text)
-        if not code:
-            stats["skipped_empty_code"] += 1
-            continue
+            out_rows.append(row)
+            seen_keys.add(key)
+            stats[f"emitted_{variant}"] += 1
 
-        row = {
-            "sample_id": f"{slug}__{commit_id[:12]}__{idx}",
-            "project": slug,
-            "label": label,
-            "cwe": (fr.get("cwe_id") or meta["cwe_id"] or "").strip(),
-            "code": code,
-            "file_path": file_path,
-            "method_name": (fr.get("method") or "").strip(),
-            "signature": (fr.get("signature") or "").strip(),
-            "commit_id": commit_id,
-            "project_slug": slug,
-            "cve_id": (fr.get("cve_id") or "").strip(),
-            "source_dataset": "CWE-Bench-Java",
-        }
-        out_rows.append(row)
-
+            if max_samples > 0 and len(out_rows) >= max_samples:
+                break
         if max_samples > 0 and len(out_rows) >= max_samples:
             break
 

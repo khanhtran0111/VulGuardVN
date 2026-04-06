@@ -13,8 +13,8 @@ from common import WORK_DIR, load_jsonl, write_jsonl
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run baseline LLM inference over assembled prompts.")
-    p.add_argument("--input", default=str(WORK_DIR / "test_prompts.jsonl"))
-    p.add_argument("--output", default=str(WORK_DIR / "test_predictions.jsonl"))
+    p.add_argument("--input", default=str(WORK_DIR / "test_prompts_5.jsonl"))
+    p.add_argument("--output", default=str(WORK_DIR / "test_predictions_5.jsonl"))
     p.add_argument("--provider", choices=["dry_run", "openai", "gemini"], default="dry_run")
     p.add_argument("--model", default=None, help="Model name. If omitted, provider-specific defaults are used.")
     return p.parse_args()
@@ -134,10 +134,13 @@ def main() -> None:
             raw = call_gemini(prompt, model_name, gemini_api_key)
             pred = parse_binary_label(raw)
 
-        out = {
+        out = dict(row)
+        out.update(
+            {
             "raw_response": raw,
             "pred_label": pred,
-        }
+            }
+        )
         outputs.append(out)
 
     write_jsonl(args.output, outputs)

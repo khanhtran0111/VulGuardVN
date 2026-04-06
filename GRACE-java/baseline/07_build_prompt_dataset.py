@@ -7,8 +7,8 @@ from common import WORK_DIR, load_jsonl, truncate_text, write_jsonl
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Assemble Java GRACE-style prompts.")
-    p.add_argument("--input", default=str(WORK_DIR / "test_graph_text.jsonl"))
-    p.add_argument("--output", default=str(WORK_DIR / "test_prompts.jsonl"))
+    p.add_argument("--input", default=str(WORK_DIR / "test_graph_text_5.jsonl"))
+    p.add_argument("--output", default=str(WORK_DIR / "test_prompts_5.jsonl"))
     p.add_argument("--code-max", type=int, default=4000)
     p.add_argument("--node-max", type=int, default=2000)
     p.add_argument("--edge-max", type=int, default=2000)

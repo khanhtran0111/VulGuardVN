@@ -126,8 +126,13 @@ def wrap_java_method(code: str, class_name: str) -> str:
     If the snippet already looks like a compilation unit, it is returned unchanged.
     """
     code = normalize_whitespace(code)
-    lowered = code.lower()
-    if any(tok in lowered for tok in [" class ", " interface ", " enum ", " record ", "package "]):
+    if re.search(r"(?m)^\s*package\s+[\w.]+\s*;", code):
+        return code
+    if re.search(
+        r"(?m)^\s*(?:public|protected|private|abstract|final|static|sealed|non-sealed|\s)*"
+        r"(?:class|interface|enum|record)\s+\w+",
+        code,
+    ):
         return code
     return f"public class {class_name} {{\n{code}\n}}\n"
 

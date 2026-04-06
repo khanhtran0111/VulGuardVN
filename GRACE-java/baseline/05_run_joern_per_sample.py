@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 from common import WORK_DIR, ensure_dir, load_jsonl, slugify, wrap_java_method, write_jsonl
@@ -34,12 +34,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_cmd(cmd: list[str], env: dict[str, str] | None = None) -> None:
-    run_target = cmd
     if os.name == "nt" and cmd and cmd[0].lower().endswith((".bat", ".cmd")):
-        # On Windows, batch scripts must be executed via cmd.exe.
-        run_target = ["cmd", "/c", *cmd]
-
-    proc = subprocess.run(run_target, check=False, capture_output=True, text=True, env=env)
+        # On Windows, batch scripts must be executed through the shell, and paths with
+        # spaces must be quoted as a single command line.
+        run_target = subprocess.list2cmdline(cmd)
+        proc = subprocess.run(run_target, check=False, capture_output=True, text=True, env=env, shell=True)
+    else:
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True, env=env)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "").strip()
         raise RuntimeError(f"Command failed ({proc.returncode}): {' '.join(cmd)}\n{detail}")
@@ -233,14 +234,19 @@ def main() -> None:
     rows = load_jsonl(args.input)
     out_rows = []
     base_out = ensure_dir(output_path.parent / (output_path.stem + "_joern"))
+    temp_root = ensure_dir(WORK_DIR / "_joern_tmp")
 
     for idx, row in enumerate(rows):
         sample_id = str(row.get("sample_id", idx))
         # Keep output directory unique even when long sample_id values are truncated by slugify.
         sample_slug = f"{slugify(sample_id, max_len=64)}_{idx}"
-        workdir = Path(tempfile.mkdtemp(prefix=f"joern_{sample_slug}_"))
+        temp_prefix = f"joern_{idx:04d}_"
+        sample_hash = hashlib.sha1(sample_id.encode("utf-8")).hexdigest()[:10]
+        workdir = temp_root / f"{temp_prefix}{sample_hash}"
+        shutil.rmtree(workdir, ignore_errors=True)
+        workdir = ensure_dir(workdir)
         srcdir = ensure_dir(workdir / "src")
-        class_name = f"Wrap_{sample_slug}"
+        class_name = f"Wrap_{idx}_{sample_hash}"
         java_path = srcdir / f"{class_name}.java"
         java_path.write_text(wrap_java_method(row["code"], class_name), encoding="utf-8")
 
