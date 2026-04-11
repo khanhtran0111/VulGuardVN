@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
 from common import MODELS_DIR, ensure_dir, tokenize_code, truncate_text
-from graphs import get_graph_features
+from graphs import get_graph_features, resolve_graph_backend_with_notice
 
 
 DEMO_BANK_SCHEMA_VERSION = 2
@@ -19,6 +20,7 @@ DEFAULT_EMBEDDING_BATCH_SIZE = 16
 DEFAULT_LEXICAL_WEIGHT = 0.7
 DEFAULT_SYNTACTIC_WEIGHT = 0.3
 AST_SIMILARITY_MAX_TOKENS = 192
+DEFAULT_BUILD_PROGRESS_EVERY = 250
 
 _ENCODER_CACHE: dict[tuple[str, str], "SemanticRetrievalEncoder"] = {}
 
@@ -212,6 +214,7 @@ def build_demo_bank(
     semantic_max_length: int = DEFAULT_EMBEDDING_MAX_LENGTH,
     auto_download_semantic_model: bool = False,
     graph_backend: str = "auto",
+    progress_every: int = DEFAULT_BUILD_PROGRESS_EVERY,
 ) -> dict:
     rng = np.random.default_rng(random_seed)
     grouped = {0: [], 1: []}
@@ -220,6 +223,16 @@ def build_demo_bank(
 
     sampled = []
     graph_backend_counts = {}
+    graph_backend_resolved, graph_backend_notice = resolve_graph_backend_with_notice(graph_backend)
+    total_records = sum(min(len(items), max_examples_per_label) for items in grouped.values())
+    started = time.perf_counter()
+    print(
+        f"[demo-bank] Building graph features for {total_records} records "
+        f"(graph={graph_backend_resolved}, semantic={semantic_backend})"
+    )
+    if graph_backend_notice:
+        print(f"[demo-bank] Graph backend notice: {graph_backend_notice}")
+    processed = 0
     for label, items in grouped.items():
         if len(items) > max_examples_per_label:
             indices = rng.choice(len(items), size=max_examples_per_label, replace=False)
@@ -243,7 +256,12 @@ def build_demo_bank(
                     "graph_backend": graph_features["backend"],
                 }
             )
+            processed += 1
+            if progress_every and (processed % progress_every == 0 or processed == total_records):
+                elapsed = time.perf_counter() - started
+                print(f"[demo-bank] Graph features ready: {processed}/{total_records} in {elapsed:.1f}s")
 
+    print(f"[demo-bank] Building semantic store with backend request={semantic_backend}")
     semantic_backend_used, semantic_payload, semantic_notice = _build_semantic_store(
         sampled,
         semantic_backend=semantic_backend,
@@ -254,6 +272,7 @@ def build_demo_bank(
         max_features=max_features,
         auto_download_semantic_model=auto_download_semantic_model,
     )
+    print(f"[demo-bank] Semantic store ready with backend={semantic_backend_used}")
     label_indices = {
         0: [index for index, row in enumerate(sampled) if row["label"] == 0],
         1: [index for index, row in enumerate(sampled) if row["label"] == 1],
@@ -267,6 +286,8 @@ def build_demo_bank(
         "semantic_config": semantic_payload["config"],
         "semantic_store": semantic_payload["store"],
         "graph_backend_requested": graph_backend,
+        "graph_backend_resolved": graph_backend_resolved,
+        "graph_backend_notice": graph_backend_notice,
         "graph_backend_counts": graph_backend_counts,
         "rerank": {
             "lexical_weight": DEFAULT_LEXICAL_WEIGHT,

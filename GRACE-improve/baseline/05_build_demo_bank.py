@@ -23,6 +23,7 @@ SEMANTIC_BATCH_SIZE = int(os.getenv("GRACE_RETRIEVAL_BATCH_SIZE", str(DEFAULT_EM
 SEMANTIC_MAX_LENGTH = int(os.getenv("GRACE_RETRIEVAL_MAX_LENGTH", str(DEFAULT_EMBEDDING_MAX_LENGTH)))
 AUTO_DOWNLOAD_SEMANTIC_MODEL = os.getenv("GRACE_AUTO_DOWNLOAD_RETRIEVAL_MODEL", "").strip().lower() in {"1", "true", "yes", "on"}
 GRAPH_BACKEND = os.getenv("GRACE_GRAPH_BACKEND", "auto")
+PROGRESS_EVERY = int(os.getenv("GRACE_BUILD_PROGRESS_EVERY", "250"))
 
 
 def _sample_records_by_label(split_path, max_examples_per_label: int, seed: int):
@@ -58,6 +59,10 @@ def main() -> None:
     if not train_path.exists():
         raise FileNotFoundError(f"Missing train split for {DATASET_NAME}. Run 02_create_splits.py first.")
     records = _sample_records_by_label(train_path, max_examples_per_label=MAX_EXAMPLES_PER_LABEL, seed=SEED)
+    print(
+        f"Building demo bank for dataset={DATASET_NAME} with {len(records)} sampled records "
+        f"(semantic={SEMANTIC_BACKEND}, graph={GRAPH_BACKEND})"
+    )
     bank = build_demo_bank(
         records=records,
         max_examples_per_label=MAX_EXAMPLES_PER_LABEL,
@@ -70,6 +75,7 @@ def main() -> None:
         semantic_max_length=SEMANTIC_MAX_LENGTH,
         auto_download_semantic_model=AUTO_DOWNLOAD_SEMANTIC_MODEL,
         graph_backend=GRAPH_BACKEND,
+        progress_every=PROGRESS_EVERY,
     )
     output_dir = ensure_dir(RETRIEVAL_DIR / DATASET_NAME)
     bank_path = output_dir / "demo_bank.joblib"
@@ -84,6 +90,8 @@ def main() -> None:
         "semantic_notice": bank.get("semantic_notice"),
         "semantic_config": bank.get("semantic_config"),
         "graph_backend_requested": bank.get("graph_backend_requested"),
+        "graph_backend_resolved": bank.get("graph_backend_resolved"),
+        "graph_backend_notice": bank.get("graph_backend_notice"),
         "graph_backend_counts": bank.get("graph_backend_counts"),
     }
     dump_json(output_dir / "summary.json", summary)

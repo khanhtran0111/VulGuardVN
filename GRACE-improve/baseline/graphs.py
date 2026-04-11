@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 from collections import Counter, defaultdict
+from functools import lru_cache
 from pathlib import Path
 
 from common import (
@@ -56,12 +57,20 @@ def graph_cache_path(dataset_name: str, code_hash: str) -> Path:
 
 
 def resolve_graph_backend(preferred: str = "auto") -> str:
+    resolved, _ = resolve_graph_backend_with_notice(preferred)
+    return resolved
+
+
+def resolve_graph_backend_with_notice(preferred: str = "auto") -> tuple[str, str | None]:
     lowered = (preferred or "auto").strip().lower()
     if lowered not in {"auto", "joern", "heuristic"}:
         raise ValueError(f"Unsupported graph backend: {preferred}")
     if lowered != "auto":
-        return lowered
-    return "joern" if _has_joern_tools() else "heuristic"
+        return lowered, None
+    joern_ok, joern_notice = _probe_joern_backend()
+    if joern_ok:
+        return "joern", None
+    return "heuristic", joern_notice
 
 
 def default_joern_install_dir() -> Path:
@@ -485,6 +494,23 @@ def _has_joern_tools() -> bool:
     joern_parse = resolve_joern_command("joern-parse")
     joern_export = resolve_joern_command("joern-export")
     return _command_exists(joern_parse) and _command_exists(joern_export)
+
+
+@lru_cache(maxsize=1)
+def _probe_joern_backend() -> tuple[bool, str | None]:
+    if not _has_joern_tools():
+        return False, "Joern executables were not found."
+    try:
+        artifact = _build_joern_graph_features(
+            "int grace_probe(int value) { return value + 1; }",
+            max_nodes=16,
+            max_edges=16,
+        )
+    except Exception as exc:
+        return False, f"Joern health probe failed: {exc}"
+    if not artifact.get("node_rows"):
+        return False, "Joern health probe returned no nodes."
+    return True, None
 
 
 def _command_exists(command: str) -> bool:
