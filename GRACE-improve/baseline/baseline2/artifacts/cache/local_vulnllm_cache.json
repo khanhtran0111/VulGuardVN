@@ -1,0 +1,1676 @@
+{
+  "07f8c56c82f71135f90284ce802914d8871bfff869c8ab7ddbc48f870e3f64df": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4323,\"reason\":\"Potential out-of-bounds read in memcmp due to unvalidated buffer sizes when comparing dst_ref and dst_new.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4323,
+      "reason": "Potential out-of-bounds read in memcmp due to unvalidated buffer sizes when comparing dst_ref and dst_new."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3709,
+      "generated_tokens": 44
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679553.3716843
+  },
+  "e8ab65793270c888b8d43c1d123f6aedf9c4d9f9699042f5741f98b0a7638874": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential NULL dereference via g_assert(d->dev != NULL) after qpci_device_find which may return NULL.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential NULL dereference via g_assert(d->dev != NULL) after qpci_device_find which may return NULL."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3824,
+      "generated_tokens": 42
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679654.624229
+  },
+  "14f13678027c2e95d992c63b2b4c1999901008b9406dc35222b393d0b1e8cc93": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential out-of-bounds access due to improper validation of cache_size and address_offset, leading to incorrect memory mapping.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential out-of-bounds access due to improper validation of cache_size and address_offset, leading to incorrect memory mapping."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4461,
+      "generated_tokens": 42
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679761.8597236
+  },
+  "1a3d97b4ef843637186abb65893092760ff6e455974e1b0494f20553d04d5b55": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5471,\"reason\":\"Potential NULL pointer dereference: The function initializes s->pwl.base with base but doesn't validate if s itself is NULL. If called with a NULL s parameter, accessing s->pwl would crash.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5471,
+      "reason": "Potential NULL pointer dereference: The function initializes s->pwl.base with base but doesn't validate if s itself is NULL. If called with a NULL s parameter, accessing s->pwl would crash."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1646,
+      "generated_tokens": 64
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679768.3499036
+  },
+  "38c01971175d123513233067f853cdad00a1f41dc298f93eac44627f101497c2": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential NULL dereference if build_state is NULL. The check for !build_state occurs before accessing build_state->patched, but if build_state itself is NULL, dereferencing it would crash.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential NULL dereference if build_state is NULL. The check for !build_state occurs before accessing build_state->patched, but if build_state itself is NULL, dereferencing it would crash."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1830,
+      "generated_tokens": 59
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679773.619726
+  },
+  "8e1656e4043aac3021c9298039e130d3cd614e444b550a2149ae2cb909790d63": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"The code checks if bufoffs + buflen exceeds length but doesn't validate if the InformationBufferOffset is within the original buffer's bounds. An attacker could set InformationBufferOffset to a negative value (when converted via le32_to_cpu), making bufoffs negative. Adding a negative offset to the buffer pointer could result in accessing memory before the buffer's start, causing an out-of-bounds read.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "The code checks if bufoffs + buflen exceeds length but doesn't validate if the InformationBufferOffset is within the original buffer's bounds. An attacker could set InformationBufferOffset to a negative value (when converted via le32_to_cpu), making bufoffs negative. Adding a negative offset to the buffer pointer could result in accessing memory before the buffer's start, causing an out-of-bounds read."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2672,
+      "generated_tokens": 103
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679784.2978728
+  },
+  "9df96c0e684ebe43166db5f7a840054a8027b8085341b290b52f269dec691c0d": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.9,\"reason\":\"Allocates memory with av_mallocz, initializes struct, sets av_class and defaults. No buffer operations or pointer misuse visible. Reference examples show proper allocation without vulnerabilities.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.9,
+      "reason": "Allocates memory with av_mallocz, initializes struct, sets av_class and defaults. No buffer operations or pointer misuse visible. Reference examples show proper allocation without vulnerabilities."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1168,
+      "generated_tokens": 53
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679788.4876223
+  },
+  "0251940b54020fabeda2b5d435ff0a08b946687e3b4b8e978ec0b2e158de9802": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Integer overflow in total_size calculation: options->value.n could be large enough to cause overflow when multiplied by 512 during ftruncate, leading to undersized allocation.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Integer overflow in total_size calculation: options->value.n could be large enough to cause overflow when multiplied by 512 during ftruncate, leading to undersized allocation."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2082,
+      "generated_tokens": 54
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679793.989333
+  },
+  "4bbd186188052100a6aa5ffe1da4644ca328c97cb6ae16a946fa9364c66e1663": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"Potential integer overflow in allocation size calculation (packages_count * sizeof(UID)) could lead to undersized buffer. Check uses UINT_MAX division to prevent overflow but relies on correct sizeof(UID) usage. If UID size changes, check becomes invalid. Code assumes sizeof(UID) is fixed, which may not hold in all contexts.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7,
+      "reason": "Potential integer overflow in allocation size calculation (packages_count * sizeof(UID)) could lead to undersized buffer. Check uses UINT_MAX division to prevent overflow but relies on correct sizeof(UID) usage. If UID size changes, check becomes invalid. Code assumes sizeof(UID) is fixed, which may not hold in all contexts."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2569,
+      "generated_tokens": 85
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776679803.6420581
+  },
+  "caf259f0d07b80a34f9d34041efee29b3b96d9c5ff3ceb30fe1aa308865773fc": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.513,\"reason\":\"Potential integer overflow in bmap_size calculation: header.blocks_in_image multiplied by sizeof(uint32_t) could overflow, leading to undersized buffer allocation. This might cause heap overflow during bdrv_read.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.513,
+      "reason": "Potential integer overflow in bmap_size calculation: header.blocks_in_image multiplied by sizeof(uint32_t) could overflow, leading to undersized buffer allocation. This might cause heap overflow during bdrv_read."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4744,
+      "generated_tokens": 62
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776769080.1579926
+  },
+  "eeee8bfed4c0ec088f26e4b034ab28ddd7ffa303da8853e33582448ab7bd8446": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"The code lacks bounds checks when accessing the src array via calculated indices, risking out-of-bounds reads. Additionally, the destination buffer's write operation isn't properly validated after the initial check, potentially causing overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "The code lacks bounds checks when accessing the src array via calculated indices, risking out-of-bounds reads. Additionally, the destination buffer's write operation isn't properly validated after the initial check, potentially causing overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2560,
+      "generated_tokens": 61
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776769149.021472
+  },
+  "8ab6201c3b4b32ea6b7c4d001599c995010160266100b3a5f18aeb2f549f5b9c": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7365,\"reason\":\"memory_region_init_ram uses FCODE_MAX_ROM_SIZE without validation. If FCODE_MAX_ROM_SIZE exceeds the allocated buffer size, it could cause an out-of-bounds write (buffer overflow).\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7365,
+      "reason": "memory_region_init_ram uses FCODE_MAX_ROM_SIZE without validation. If FCODE_MAX_ROM_SIZE exceeds the allocated buffer size, it could cause an out-of-bounds write (buffer overflow)."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2180,
+      "generated_tokens": 60
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776769223.0798364
+  },
+  "885dfe64631cba4af36d265f29b2c263b623bd98101f2af37c13451c32073993": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.95,\"reason\":\"Adjusting instruction flags via bitwise operations doesn't involve memory access or buffer handling. The code safely masks flags without introducing vulnerabilities like out-of-bounds writes.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.95,
+      "reason": "Adjusting instruction flags via bitwise operations doesn't involve memory access or buffer handling. The code safely masks flags without introducing vulnerabilities like out-of-bounds writes."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2446,
+      "generated_tokens": 52
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776769296.8364959
+  },
+  "f954aea79db600234010b95e778eec61b1991bf5341be80746d2c39b332bc808": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4682,\"reason\":\"Potential buffer overflow due to unvalidated filter size in switch cases. The code uses filtersize without checking against valid options, risking invalid function pointers or out-of-bounds access.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4682,
+      "reason": "Potential buffer overflow due to unvalidated filter size in switch cases. The code uses filtersize without checking against valid options, risking invalid function pointers or out-of-bounds access."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 5427,
+      "generated_tokens": 57
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776769915.5110974
+  },
+  "9f99769c6c5dd8425b8bdd9299eadeeec5d44c36a379127a885dbbcab4c2921f": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.9,\"reason\":\"No memory operations or buffer accesses detected. Input validations appear sufficient for control flow checks.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.9,
+      "reason": "No memory operations or buffer accesses detected. Input validations appear sufficient for control flow checks."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2812,
+      "generated_tokens": 37
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776769986.2424252
+  },
+  "dae7590226b3a956a2545eb8d0abd1e7382d15fd56c8fa6ce83b6c144cb02a80": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5946,\"reason\":\"Potential out-of-bounds read in t->ptses[mxf->current_edit_unit] due to missing bounds check after incrementing current_edit_unit in the loop.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5946,
+      "reason": "Potential out-of-bounds read in t->ptses[mxf->current_edit_unit] due to missing bounds check after incrementing current_edit_unit in the loop."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3944,
+      "generated_tokens": 55
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776770094.456247
+  },
+  "6ee8949e770461f3dcec00d1d5f3450b83008d1a39fae539f9497cd49af9ec09": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.525,\"reason\":\"Potential buffer overflow in gen_opc_ptr handling due to unchecked writes to arrays like gen_opc_end. The loop condition checks gen_opc_ptr against gen_opc_end, but if tcg_ctx.gen_opc_ptr increments beyond the allocated buffer during writes (e.g., *tcg_ctx.gen_opc_ptr = INDEX_op_end), it could cause out-of-bounds memory access.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.525,
+      "reason": "Potential buffer overflow in gen_opc_ptr handling due to unchecked writes to arrays like gen_opc_end. The loop condition checks gen_opc_ptr against gen_opc_end, but if tcg_ctx.gen_opc_ptr increments beyond the allocated buffer during writes (e.g., *tcg_ctx.gen_opc_ptr = INDEX_op_end), it could cause out-of-bounds memory access."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4762,
+      "generated_tokens": 99
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776770257.6344268
+  },
+  "6b04192d74b1a329e6f6fd50b313f8b45833241b04d6c9fd501f029e1af74003": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6961,\"reason\":\"The loop processes src_size/2 elements but writes 4 bytes per iteration. For odd src_size, this causes buffer overflow in the destination array.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6961,
+      "reason": "The loop processes src_size/2 elements but writes 4 bytes per iteration. For odd src_size, this causes buffer overflow in the destination array."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2455,
+      "generated_tokens": 52
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776770343.3746867
+  },
+  "13699dcc85642abc0e794a93f760cfbefa33bd866b6a996c1fa74802e2cd29df": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5,\"reason\":\"Potential out-of-bounds write due to insufficient bounds checking when calculating ep->rxcount using ep->packey[0].p.len minus fifo start index.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5,
+      "reason": "Potential out-of-bounds write due to insufficient bounds checking when calculating ep->rxcount using ep->packey[0].p.len minus fifo start index."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4378,
+      "generated_tokens": 51
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776770483.4765024
+  },
+  "012eee84fb77b77d789a8e7b2dd78c8c166b2783236f4b3115360d1eec1ea995": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4077,\"reason\":\"Potential out-of-bounds write in array access due to improper size handling when addr &4 is true. The code shifts v32 <<32 and combines with s->latch_tmp without validating if the combined value exceeds the destination buffer's capacity.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4077,
+      "reason": "Potential out-of-bounds write in array access due to improper size handling when addr &4 is true. The code shifts v32 <<32 and combines with s->latch_tmp without validating if the combined value exceeds the destination buffer's capacity."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4916,
+      "generated_tokens": 73
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776770717.5394723
+  },
+  "b4f1788be03f48f3236815d39cf89218fdc9cc89fe01e74a8e80a3b4959487e4": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential integer overflow in allocation size calculation (blocksize + max_order + 2) could lead to undersized buffer, causing heap overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential integer overflow in allocation size calculation (blocksize + max_order + 2) could lead to undersized buffer, causing heap overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2322,
+      "generated_tokens": 47
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776770834.6545818
+  },
+  "fc6dd69ac8f917e921783d5bcb50874e3837f2ff7ad578e4fa862b46d775a6f6": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5051,\"reason\":\"Potential buffer overflow from improper pkt_temp handling after memset and size adjustments.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5051,
+      "reason": "Potential buffer overflow from improper pkt_temp handling after memset and size adjustments."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4480,
+      "generated_tokens": 36
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771048.4224045
+  },
+  "ad2f3323ed797d511d4cb83fdee3242a823e792b5d66066a955589f894517125": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"memcpy uses sec<<9 and secn<<9 without validating buffer size. Caller should ensure destination buffer can hold secn<<9 bytes. If caller passes insufficient buffer, this causes out-of-bounds write.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "memcpy uses sec<<9 and secn<<9 without validating buffer size. Caller should ensure destination buffer can hold secn<<9 bytes. If caller passes insufficient buffer, this causes out-of-bounds write."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1611,
+      "generated_tokens": 61
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771103.3392644
+  },
+  "c9daf5987de9c5a464ff013e9b2f01996393f39c7a1d0097cf40473874e32c5d": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"No memory operations or buffer assignments present. The assignment sets a pointer to a constant without unsafe interactions.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "No memory operations or buffer assignments present. The assignment sets a pointer to a constant without unsafe interactions."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1018,
+      "generated_tokens": 40
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771129.4607103
+  },
+  "287d607a436f846a9493e3b2247fc70ea983a46eb82be61a06b609d04bf3ed0c": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"No direct memory operations or unsafe API usage observed. Pointer dereferencing appears valid within function scope.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "No direct memory operations or unsafe API usage observed. Pointer dereferencing appears valid within function scope."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1468,
+      "generated_tokens": 40
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771172.5461204
+  },
+  "b8770df8a67a07dee29e3092947be0a231f9a9037f80d65f5d41f91a373dec2f": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential division by zero if T1 is zero, leading to undefined behavior.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential division by zero if T1 is zero, leading to undefined behavior."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 975,
+      "generated_tokens": 34
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771197.670014
+  },
+  "09dee7b5c6034350820ee21842b74b63cf18d7cb4a952eacbda023a1fb01f72a": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Allocates size+1 bytes but writes to index 'size' (equal to rlength), causing an off-by-one overflow. This writes beyond the allocated buffer's last valid index.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Allocates size+1 bytes but writes to index 'size' (equal to rlength), causing an off-by-one overflow. This writes beyond the allocated buffer's last valid index."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3310,
+      "generated_tokens": 56
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771301.4571228
+  },
+  "027342a85bb31b0ffaaa67653d28f800e4701d7851e456650f323cec7117a2e4": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.549,\"reason\":\"Potential out-of-bounds write due to unchecked array indices in sbr->patch_num_subbands and sbr->patch_start_subband when sbr->num_patches exceeds allocated size.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.549,
+      "reason": "Potential out-of-bounds write due to unchecked array indices in sbr->patch_num_subbands and sbr->patch_start_subband when sbr->num_patches exceeds allocated size."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3923,
+      "generated_tokens": 58
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771441.8592255
+  },
+  "6ca62ecf368946f6d606601dcde6d906c641a498b9eaed21fa89d338943b94b8": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"No direct memory operations or unsafe patterns detected. Function initializes device state properly.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "No direct memory operations or unsafe patterns detected. Function initializes device state properly."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1178,
+      "generated_tokens": 35
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771474.2717247
+  },
+  "aaf0a8fd3b36d4117121d338c0055b5711e549847101235fc8aa2c9fc1102640": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.6449,\"reason\":\"No direct evidence of memory safety issues like use-after-free or buffer overflows. Checks for s->clk and parameter validation appear proper. Memory region initialization follows expected patterns without obvious out-of-bounds access.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.6449,
+      "reason": "No direct evidence of memory safety issues like use-after-free or buffer overflows. Checks for s->clk and parameter validation appear proper. Memory region initialization follows expected patterns without obvious out-of-bounds access."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2661,
+      "generated_tokens": 64
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771593.200001
+  },
+  "ba8db3d6bc9f31ef1407c6c179a057680148eacf88b8116ac6fe31aba10e3ebb": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential out-of-bounds write in memcpy(&feed->streams[i]->codec, ..., sizeof(AVCodecContext)) due to unchecked s.nb_streams vs feed->nb_streams. If they differ, copying may exceed streams array bounds.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential out-of-bounds write in memcpy(&feed->streams[i]->codec, ..., sizeof(AVCodecContext)) due to unchecked s.nb_streams vs feed->nb_streams. If they differ, copying may exceed streams array bounds."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4494,
+      "generated_tokens": 65
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776771786.7818723
+  },
+  "4eb7038456b13c6cead375fc44dc4af038949679ecefb2f37c57ae90520bebb7": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.635,\"reason\":\"Potential buffer overflow in temp array usage. The temp buffer is 64 bytes, but temp_size increments without checking if it exceeds the array bounds. In loops like temp[temp_size++] = ..., if temp_size reaches 64, writing to temp[64] would be out-of-bounds. This could lead to a stack-based buffer overflow due to insufficient bounds checks.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.635,
+      "reason": "Potential buffer overflow in temp array usage. The temp buffer is 64 bytes, but temp_size increments without checking if it exceeds the array bounds. In loops like temp[temp_size++] = ..., if temp_size reaches 64, writing to temp[64] would be out-of-bounds. This could lead to a stack-based buffer overflow due to insufficient bounds checks."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 6201,
+      "generated_tokens": 97
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776772771.4204423
+  },
+  "949188bbb1fb4320e271bf80edea1e3a22a2cf7d86ed4c8ba6690f04027962af": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"No memory operations or buffer accesses in the code. Only sets debug flag and stops VM.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "No memory operations or buffer accesses in the code. Only sets debug flag and stops VM."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1114,
+      "generated_tokens": 38
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776772806.9368794
+  },
+  "e5b3d1fe7f5f592736755c073f96345ee830d8ce6dafdfb7d11d6fd6339c5051": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4486,\"reason\":\"Potential buffer overflow from unchecked sprintf arguments in g_strdup_printf when constructing new_id. The format string lacks a width specifier for %i, risking integer-to-string conversion issues. While the immediate code shows no obvious overflow, improper validation of bus_id/unit_id could lead to oversized formatted strings exceeding destination buffer capacity.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4486,
+      "reason": "Potential buffer overflow from unchecked sprintf arguments in g_strdup_printf when constructing new_id. The format string lacks a width specifier for %i, risking integer-to-string conversion issues. While the immediate code shows no obvious overflow, improper validation of bus_id/unit_id could lead to oversized formatted strings exceeding destination buffer capacity."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4605,
+      "generated_tokens": 83
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773086.4688709
+  },
+  "36740aea10c890037b6def00c9800942d2314877316149313eeefe055b7bc30c": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6973,\"reason\":\"Potential use-after-free if bmds->blk is invalid after release. No validation checks exist post-release for blk's validity.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6973,
+      "reason": "Potential use-after-free if bmds->blk is invalid after release. No validation checks exist post-release for blk's validity."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1754,
+      "generated_tokens": 48
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773141.331642
+  },
+  "2495b3e3fa383eff01c271b47ade4dbbe75d986d4b65ee25e04e3c2ae342c445": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.6,\"reason\":\"No buffer overflows, use-after-free, or out-of-bounds reads detected. CPUID and xgetbv usage appears safe with proper checks.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.6,
+      "reason": "No buffer overflows, use-after-free, or out-of-bounds reads detected. CPUID and xgetbv usage appears safe with proper checks."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4480,
+      "generated_tokens": 50
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773370.8340566
+  },
+  "7af1fd5d38c2abed3d9db1a7819e2b3bcbe9008384e41fbb9d8aefa5942600fc": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4401,\"reason\":\"Loop condition uses c->name without checking for NULL, risking out-of-bounds read when array ends.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4401,
+      "reason": "Loop condition uses c->name without checking for NULL, risking out-of-bounds read when array ends."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3419,
+      "generated_tokens": 43
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773468.3025067
+  },
+  "97016274e5068fefeaa1feb4e9f9260b7d600d97571576d321ee58ffbfc24420": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5289,\"reason\":\"Potential buffer overflow in snprintf due to oversized formatted string, though nc->info_str size isn't explicitly shown. Other areas like getsockname usage appear safe.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5289,
+      "reason": "Potential buffer overflow in snprintf due to oversized formatted string, though nc->info_str size isn't explicitly shown. Other areas like getsockname usage appear safe."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4253,
+      "generated_tokens": 54
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773676.1521986
+  },
+  "2dbf643b3c24004e06eae0597a3c5e340b19bb2ddad1bdec5162b8edb1c296d7": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential out-of-bounds read due to insufficient buffer validation when accessing tmp.u8 array.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential out-of-bounds read due to insufficient buffer validation when accessing tmp.u8 array."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3584,
+      "generated_tokens": 37
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773779.1970694
+  },
+  "ce17992d6ea747e6813d51783023239064804c9fde6edc20f70cc02a5b30c09b": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5279,\"reason\":\"The function checks nb_sectors > total_sectors but not sector_num + nb_sectors exceeding total_sectors. This allows invalid access when sector_num is near total_sectors.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5279,
+      "reason": "The function checks nb_sectors > total_sectors but not sector_num + nb_sectors exceeding total_sectors. This allows invalid access when sector_num is near total_sectors."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1277,
+      "generated_tokens": 58
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776773816.999972
+  },
+  "911a5cd6fc0b01048bdbd503f4ef6db24ecc557cf045911359e589de7ff9c8b4": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4926,\"reason\":\"Potential use-after-free via sigsetjmp handling. Code saves current_cpu into cpu variable during exception handling, but if original cpu pointer is freed elsewhere, accessing saved cpu->jmp_env could cause UAF. While QEMU's design likely ensures cpu validity, lack of explicit ownership transfer creates theoretical risk.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4926,
+      "reason": "Potential use-after-free via sigsetjmp handling. Code saves current_cpu into cpu variable during exception handling, but if original cpu pointer is freed elsewhere, accessing saved cpu->jmp_env could cause UAF. While QEMU's design likely ensures cpu validity, lack of explicit ownership transfer creates theoretical risk."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4034,
+      "generated_tokens": 82
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774002.0707624
+  },
+  "2ee5d111b6e29c7d681462e042f136406f2d42d5027e735992c179dcad41498d": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential NULL dereference in parse_array due to missing error handling after parser_context_pop_token returns NULL.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential NULL dereference in parse_array due to missing error handling after parser_context_pop_token returns NULL."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3715,
+      "generated_tokens": 39
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774120.5100496
+  },
+  "7e410419489d1ffb85bad7c1e703f3db48d9f742ba85c163ba6d897b8eaaaebf": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Index calculation uses (virtaddr >> PAGE_BITS) & (TLB_SIZE-1), which assumes TLB size matches page shift. If TARGET_PAGE_BITS is misconfigured relative to TLB size, index could exceed array bounds, causing out-of-bounds access.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Index calculation uses (virtaddr >> PAGE_BITS) & (TLB_SIZE-1), which assumes TLB size matches page shift. If TARGET_PAGE_BITS is misconfigured relative to TLB size, index could exceed array bounds, causing out-of-bounds access."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2153,
+      "generated_tokens": 72
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774205.9873114
+  },
+  "6bb1161efba8956ace55b40c0516e4f80d3eb731ed5776c9fc11c6a3d2d89ba0": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"Potential out-of-bounds write via unchecked loop iterations when copying data into user-controlled buffer using TARGET_NSIG_WORDS without validating against actual array size.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7,
+      "reason": "Potential out-of-bounds write via unchecked loop iterations when copying data into user-controlled buffer using TARGET_NSIG_WORDS without validating against actual array size."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4337,
+      "generated_tokens": 48
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774402.050834
+  },
+  "1a840708dee3011dfd1c0b713b5ac037dc1e416553e1bb8f489902caac917b22": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"No memory operations or buffer accesses detected. The function returns values based on input checks without dynamic memory or array operations.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "No memory operations or buffer accesses detected. The function returns values based on input checks without dynamic memory or array operations."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1581,
+      "generated_tokens": 43
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774462.651731
+  },
+  "4db69506df4dc66bd81da43c303ad4c4180af762543aae9f7d652bf1c28d638d": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5193,\"reason\":\"memcpy operations use h_SL (derived from bs_smoothing_mode) without validating against destination buffer sizes. If h_SL exceeds allocated g_temp/q_temp array indices, it causes out-of-bounds writes.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5193,
+      "reason": "memcpy operations use h_SL (derived from bs_smoothing_mode) without validating against destination buffer sizes. If h_SL exceeds allocated g_temp/q_temp array indices, it causes out-of-bounds writes."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 5070,
+      "generated_tokens": 62
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774705.489972
+  },
+  "05121dee156d1dc923b4562c1bccc1ff19bb2aebb933d79dc2dc8553f3ac0b6e": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.3448,\"reason\":\"Potential buffer overflow due to improper bounds checking when calculating tb->size as pc_ptr - pc_start without validating if pc_ptr exceeds tb's allocated memory.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.3448,
+      "reason": "Potential buffer overflow due to improper bounds checking when calculating tb->size as pc_ptr - pc_start without validating if pc_ptr exceeds tb's allocated memory."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4948,
+      "generated_tokens": 52
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776774937.1581912
+  },
+  "8d2839d8ec431f12539d0e88248b02b456bc83ded552204ab99b2980f41e3897": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential integer overflow in nb_sectors * BDRV_SECTOR_SIZE calculation due to missing overflow check, leading to undersized buffer allocation and out-of-bounds access.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential integer overflow in nb_sectors * BDRV_SECTOR_SIZE calculation due to missing overflow check, leading to undersized buffer allocation and out-of-bounds access."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2292,
+      "generated_tokens": 52
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775021.245557
+  },
+  "b73b01e048c7f81621a0d37ee10d6674785f72b3b6b3d7dc209b98c506bc46fc": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.74,\"reason\":\"Loop runs 'part' times (1<<porder), but 'sums' array might have smaller size. Accessing sums[i] without validating array bounds risks out-of-bounds read.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.74,
+      "reason": "Loop runs 'part' times (1<<porder), but 'sums' array might have smaller size. Accessing sums[i] without validating array bounds risks out-of-bounds read."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2714,
+      "generated_tokens": 59
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775118.3116832
+  },
+  "474308c0426faf8cc26b10b99b772c2d70e93e1b79057e3e76ee8a7a4589bcbe": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.8,\"reason\":\"No direct memory operations or unsafe API calls. The function cleans up resources without obvious use-after-free or buffer issues.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.8,
+      "reason": "No direct memory operations or unsafe API calls. The function cleans up resources without obvious use-after-free or buffer issues."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1325,
+      "generated_tokens": 43
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775151.0879378
+  },
+  "de23cebe5e3417d669dcf276c3acb21c21245696053a52d770fc54008516d2b6": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4392,\"reason\":\"Buffer overflow risk exists when processing AVS_PALETTE due to insufficient validation of palette indices. The loop runs from first to last without ensuring indices stay within allocated buffer bounds.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4392,
+      "reason": "Buffer overflow risk exists when processing AVS_PALETTE due to insufficient validation of palette indices. The loop runs from first to last without ensuring indices stay within allocated buffer bounds."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4609,
+      "generated_tokens": 56
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775356.1062663
+  },
+  "987020552764b215325504c52f25476bb86510a56db72d2627a6e9ce9661d575": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential NULL pointer dereference via unchecked DisasContext *dc parameter. If passed as NULL, accessing dc->tb_flags would crash.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential NULL pointer dereference via unchecked DisasContext *dc parameter. If passed as NULL, accessing dc->tb_flags would crash."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1385,
+      "generated_tokens": 46
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775390.5017428
+  },
+  "63e4a4dd7ea9d24108792bbe5fcb5a713447937bfbe2befe659047b29d89e7fc": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.85,\"reason\":\"Buffer size calculation uses max_nesting=1024, making buf size 2049. When passing max_nesting+1=1025 to make_nest, it creates a deeper structure than buf can hold, risking overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.85,
+      "reason": "Buffer size calculation uses max_nesting=1024, making buf size 2049. When passing max_nesting+1=1025 to make_nest, it creates a deeper structure than buf can hold, risking overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2003,
+      "generated_tokens": 72
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775452.3972027
+  },
+  "04fa60e49bdc48273fe160ab12509bdf8043c2468f9c3fd9f176b0896c344b32": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"Potential NULL pointer dereference in host_memory_backend_get_memory if MEMORY_BACKEND(val) returns invalid pointer.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7,
+      "reason": "Potential NULL pointer dereference in host_memory_backend_get_memory if MEMORY_BACKEND(val) returns invalid pointer."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2379,
+      "generated_tokens": 39
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775533.1559627
+  },
+  "86e2068d864da94da0b8509a820fa4e7497404145e82074dacc616bd612f6ca0": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6636,\"reason\":\"Allocates struct with g_malloc0 but doesn't initialize fields like 'memory' or 'base'. While the code calls reset function, improper initialization could leave pointers uninitialized. However, no direct use-after-free or out-of-bounds read observed. Vulnerability depends on reset function's implementation, which isn't shown here.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6636,
+      "reason": "Allocates struct with g_malloc0 but doesn't initialize fields like 'memory' or 'base'. While the code calls reset function, improper initialization could leave pointers uninitialized. However, no direct use-after-free or out-of-bounds read observed. Vulnerability depends on reset function's implementation, which isn't shown here."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2178,
+      "generated_tokens": 86
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775614.1295812
+  },
+  "7bce515d0fd723ec891e21c3b9f464ef1299808ef87b85dff92852d7b1472240": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5,\"reason\":\"Potential out-of-bounds write in recursive build_table calls due to unchecked index validity when accessing vlc->table. Caller doesn't validate if table_index exceeds allocated array size.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5,
+      "reason": "Potential out-of-bounds write in recursive build_table calls due to unchecked index validity when accessing vlc->table. Caller doesn't validate if table_index exceeds allocated array size."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4644,
+      "generated_tokens": 54
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776775812.0424094
+  },
+  "5a57d459337e6840092c3a8cdc55a66b7ab95b86951ac856ff75ad92b0772d64": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential out-of-bounds read/write in encode_plane due to unchecked chroma_width/height calculations. Chroma dimensions derived via bitwise operations could exceed buffer limits if shifts are too large, leading to buffer overflows.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential out-of-bounds read/write in encode_plane due to unchecked chroma_width/height calculations. Chroma dimensions derived via bitwise operations could exceed buffer limits if shifts are too large, leading to buffer overflows."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4630,
+      "generated_tokens": 62
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776022.3645875
+  },
+  "98b38621c7f14352e8b9137214daaadefd6c3136e6b379e75cce475182bf4d10": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"memcpy/memset operations target in buffer without validating size. Potential out-of-bounds write if input buffer is smaller than required.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "memcpy/memset operations target in buffer without validating size. Potential out-of-bounds write if input buffer is smaller than required."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3217,
+      "generated_tokens": 45
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776111.4976048
+  },
+  "e33394f709f98ab086148537d68ea8402561e8abc6cb1208f31a927bfea1d7ab": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential out-of-bounds read when nb_output_files is 0. Accessing output_files[-1] causes undefined behavior.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential out-of-bounds read when nb_output_files is 0. Accessing output_files[-1] causes undefined behavior."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1938,
+      "generated_tokens": 44
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776174.4478889
+  },
+  "da5ff69490f4d3a8d300e747ecb59501df63921a2bd1d971d9ea5ce960f2c339": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"The calculation of 'len' may produce an incorrect value due to integer overflow, leading to an out-of-bounds array access in the loop. This violates bounds checks and could cause memory corruption.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "The calculation of 'len' may produce an incorrect value due to integer overflow, leading to an out-of-bounds array access in the loop. This violates bounds checks and could cause memory corruption."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2888,
+      "generated_tokens": 58
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776256.79055
+  },
+  "ce442a8d1de411ab173ca9505ea131f0e3f61c1ae683394d4381bac36dc12746": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"No direct memory operations or unsafe API calls found. Shift handling uses validated constants without buffer interactions.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "No direct memory operations or unsafe API calls found. Shift handling uses validated constants without buffer interactions."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2269,
+      "generated_tokens": 39
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776349.7945864
+  },
+  "855b34776c3ea69999920e76fa4c6ef23f6fdc280850c11cd83bb477b7d77051": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential integer overflow in buffer allocation (s->header.blocks_in_image * sizeof(uint32_t)) could lead to undersized buffer and heap overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential integer overflow in buffer allocation (s->header.blocks_in_image * sizeof(uint32_t)) could lead to undersized buffer and heap overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3469,
+      "generated_tokens": 49
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776453.2351072
+  },
+  "67a3acaafb69200de4b4c2965758406e28df8ae92c4b0f318e9589c18d80b864": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.85,\"reason\":\"The code uses FFMIN3/FFMIN without validating input values. For positive 'value', length calculation (value+1) could exceed remaining buffer space or destination capacity. While FFMIN3 attempts to limit copy size, attacker-controlled 'value' could bypass checks via large negative inputs (e.g., value=-129 sets length=128). This leads to out-of-bounds writes when copying data beyond allocated buffers.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.85,
+      "reason": "The code uses FFMIN3/FFMIN without validating input values. For positive 'value', length calculation (value+1) could exceed remaining buffer space or destination capacity. While FFMIN3 attempts to limit copy size, attacker-controlled 'value' could bypass checks via large negative inputs (e.g., value=-129 sets length=128). This leads to out-of-bounds writes when copying data beyond allocated buffers."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2716,
+      "generated_tokens": 108
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776565.4694543
+  },
+  "fa36898a6e917ee721361c4a8c89dd480ef8fe8c8b2cfbb9426eea4108901fa3": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"snprintf uses sizeof(s->vc->info_str) correctly, no overflow. Other lines involve memory allocation and API usage but show no clear vulnerabilities.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7,
+      "reason": "snprintf uses sizeof(s->vc->info_str) correctly, no overflow. Other lines involve memory allocation and API usage but show no clear vulnerabilities."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2323,
+      "generated_tokens": 49
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776662.9540956
+  },
+  "fc8034f079df19a004d6452b3d2420ecdcc24c622825c4848bdc9c47bbb749f1": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"The code assigns functions to variables without dynamic memory operations or array accesses. No evidence of use-after-free, double free, or buffer overflows.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "The code assigns functions to variables without dynamic memory operations or array accesses. No evidence of use-after-free, double free, or buffer overflows."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4404,
+      "generated_tokens": 49
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776890.823516
+  },
+  "ed982096e71f6442c21445ad74cf67ecb5a312c2ca114bf0b4668998e5c83264": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential integer overflow in sector_num + nb_sectors calculation when adding large values, leading to incorrect total_sectors and buffer overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential integer overflow in sector_num + nb_sectors calculation when adding large values, leading to incorrect total_sectors and buffer overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2387,
+      "generated_tokens": 45
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776776976.7816403
+  },
+  "b1092d50585f8beb39a99cbd8cb19278cad6b677a82c24194a4ecd233955e755": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4614,\"reason\":\"Potential out-of-bounds access in loop handling PRDT entries due to improper offset calculation.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4614,
+      "reason": "Potential out-of-bounds access in loop handling PRDT entries due to improper offset calculation."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4733,
+      "generated_tokens": 40
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776777196.5815303
+  },
+  "e1805d2432b788b1dfc0e10e984075681366fe95018b40f319d13fda7b565c84": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"snprintf uses part_size as buffer size parameter without verifying it matches array dimensions. If part_size exceeds 512, snprintf could write beyond part[0] and part[1] buffers. While vsnprintf safely limits to part_size, snprintf's lack of bounds checking creates overflow risk when part_size exceeds 512.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "snprintf uses part_size as buffer size parameter without verifying it matches array dimensions. If part_size exceeds 512, snprintf could write beyond part[0] and part[1] buffers. While vsnprintf safely limits to part_size, snprintf's lack of bounds checking creates overflow risk when part_size exceeds 512."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2818,
+      "generated_tokens": 87
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776777283.686415
+  },
+  "a9b5cf3eba970de1c22192188e3c76f2f7887d41c1d0d1a73a859b3d58f34f15": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.5,\"reason\":\"No buffer overflows, use-after-free, or out-of-bounds accesses detected. Code initializes pointers properly and handles codec-specific settings without unsafe operations.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.5,
+      "reason": "No buffer overflows, use-after-free, or out-of-bounds accesses detected. Code initializes pointers properly and handles codec-specific settings without unsafe operations."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3940,
+      "generated_tokens": 50
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776777439.1332703
+  },
+  "50e9eb9aa4f7747634c259d8089f9873f0d809ae39676876e91548083041e98b": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.4628,\"reason\":\"Potential integer overflow in av_fast_malloc due to ctx->out_bytes being set to pkt->size without validation, leading to excessive memory allocation.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.4628,
+      "reason": "Potential integer overflow in av_fast_malloc due to ctx->out_bytes being set to pkt->size without validation, leading to excessive memory allocation."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4050,
+      "generated_tokens": 50
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776777602.2785072
+  },
+  "139c5d9af91951ffe1e202a3f05a9f40bcb7bd6a435504ed5d3a452c3795236a": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5,\"reason\":\"snprintf usage with insufficient buffer space. params_buf allocated 264 bytes, but snprintf writes up to 320 bytes (256+8) when initrd is present, causing overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5,
+      "reason": "snprintf usage with insufficient buffer space. params_buf allocated 264 bytes, but snprintf writes up to 320 bytes (256+8) when initrd is present, causing overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4301,
+      "generated_tokens": 62
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776777793.3012853
+  },
+  "aa7bb0ce0a86bfb1c2769d861e046a0c1f403618d1c6a57e012cafa4e708d943": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7673,\"reason\":\"Potential NULL dereference from unchecked test->superio usage in g_strdup_printf.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7673,
+      "reason": "Potential NULL dereference from unchecked test->superio usage in g_strdup_printf."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4970,
+      "generated_tokens": 38
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778030.2534938
+  },
+  "30f770b30cebf4973aa6c63af1420243890b909f76c890e011b4c3d34f47f72f": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6649,\"reason\":\"Potential use-after-free if timer or_bh handlers access freed 's' after g_malloc0 allocation without proper reference counting.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6649,
+      "reason": "Potential use-after-free if timer or_bh handlers access freed 's' after g_malloc0 allocation without proper reference counting."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2647,
+      "generated_tokens": 46
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778131.6761105
+  },
+  "b881064966b676589107fec3921e14ebd7a8903113e245df45b730a772b88825": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Memory allocation for UserDefOne uses g_malloc0 without checking return value. If allocation fails, subsequent writes to base->integer and string could cause NULL pointer dereference.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Memory allocation for UserDefOne uses g_malloc0 without checking return value. If allocation fails, subsequent writes to base->integer and string could cause NULL pointer dereference."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2647,
+      "generated_tokens": 53
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778241.0756943
+  },
+  "07c92d7f52bc9ecaa0deff7395f80288ffce7a3dd9a696d6eb1cb207c68e075a": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Allocates new async context without freeing previous one, causing memory leak (not directly listed in target categories but relevant to memory management).\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Allocates new async context without freeing previous one, causing memory leak (not directly listed in target categories but relevant to memory management)."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1094,
+      "generated_tokens": 45
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778275.3827927
+  },
+  "2345d04a9523ad3a1c60f79532e21f72dc5420b82ff21dba74af91f644a35f19": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5125,\"reason\":\"Potential NULL pointer dereference in cmd->frame access without prior null check.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5125,
+      "reason": "Potential NULL pointer dereference in cmd->frame access without prior null check."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4013,
+      "generated_tokens": 37
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778458.6950192
+  },
+  "db65ff12130d59b8a5f86b52bed0082b7fbdaf99578a1d2b664bde52cc8d3688": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"memcpy uses c->config_size without validating against destination buffer size, risking out-of-bounds write.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "memcpy uses c->config_size without validating against destination buffer size, risking out-of-bounds write."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2799,
+      "generated_tokens": 39
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778531.7838116
+  },
+  "c78c8122b86aeeeda28b34b7abc2d29ce79c6fe752c19cd00c8b9a8efaba2baf": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6169,\"reason\":\"memcpy uses pointer arithmetic with unvalidated 'q' buffer. No checks ensure destination buffer size matches loop iterations based on s->ncomponents.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6169,
+      "reason": "memcpy uses pointer arithmetic with unvalidated 'q' buffer. No checks ensure destination buffer size matches loop iterations based on s->ncomponents."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2236,
+      "generated_tokens": 50
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778618.102466
+  },
+  "1d33f954ccb4cc2a556076977bc650dafe99f31052894d17aa69637993ac63b1": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.6,\"reason\":\"No memory operations or buffer accesses. The function handles clock values without unsafe writes or reads.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.6,
+      "reason": "No memory operations or buffer accesses. The function handles clock values without unsafe writes or reads."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1173,
+      "generated_tokens": 38
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778647.2784493
+  },
+  "279060bb0b7ee4c3caaee5456a62643351198b207cb0c760d5ee2419bcdada78": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6102,\"reason\":\"memset initializes iu to sizeof(struct srp_login_rsp) but lacks validation of req->iu's actual size. If req->iu is smaller, memset writes beyond allocated memory, causing an out-of-bounds write.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6102,
+      "reason": "memset initializes iu to sizeof(struct srp_login_rsp) but lacks validation of req->iu's actual size. If req->iu is smaller, memset writes beyond allocated memory, causing an out-of-bounds write."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3731,
+      "generated_tokens": 66
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776778746.831904
+  },
+  "99c1c9a4c8e60573239034e6a40fa8c3ca39eb8601e8596b9ccc29d8cac36b7b": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6,\"reason\":\"Potential out-of-bounds write in memset when video_type=2 due to missing check on avctx->width against buffer size.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6,
+      "reason": "Potential out-of-bounds write in memset when video_type=2 due to missing check on avctx->width against buffer size."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 5443,
+      "generated_tokens": 45
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779042.6250336
+  },
+  "4982be4d9984f417352ab9d96c82af8b5ef7595ef34099cb8197ca84240eae5e": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.62,\"reason\":\"Potential use-after-free if d->msi is true but msi_uninit fails to properly release resources, leaving dangling pointers.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.62,
+      "reason": "Potential use-after-free if d->msi is true but msi_uninit fails to properly release resources, leaving dangling pointers."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1655,
+      "generated_tokens": 46
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779092.3445826
+  },
+  "6fa3ba9b46348ef4fb01f33ac4890d79b9c12872e7881f3fc81b1b3be82fcdb4": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"Potential NULL dereference when accessing cs->watchpoint_hit->flags without checking if it's NULL.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.7,
+      "reason": "Potential NULL dereference when accessing cs->watchpoint_hit->flags without checking if it's NULL."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2179,
+      "generated_tokens": 39
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779182.7810278
+  },
+  "c0ff9118c61eac6fc52018cddb938d2014408fbd165679cb3438a21e7a014ec3": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential out-of-bounds write in hw_breakpoint loop: nb_hw_breakpoint controls loop iterations, but hw_breakpoint array size isn't validated. If nb_hw_breakpoint exceeds array capacity, debugreg accesses become OOB. Code lacks bounds checks on hw_breakpoint array access.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential out-of-bounds write in hw_breakpoint loop: nb_hw_breakpoint controls loop iterations, but hw_breakpoint array size isn't validated. If nb_hw_breakpoint exceeds array capacity, debugreg accesses become OOB. Code lacks bounds checks on hw_breakpoint array access."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2699,
+      "generated_tokens": 76
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779286.3112051
+  },
+  "7a74abcadd6ce4282b9376db11134519f7a231f181ed5543063a09ea268b57b7": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.5147,\"reason\":\"Potential out-of-bounds read due to improper handling of src_size/2 calculation and loop conditions. The code processes 4-byte chunks but may read beyond allocated memory if src_size is odd.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5147,
+      "reason": "Potential out-of-bounds read due to improper handling of src_size/2 calculation and loop conditions. The code processes 4-byte chunks but may read beyond allocated memory if src_size is odd."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 3787,
+      "generated_tokens": 61
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779386.558799
+  },
+  "f72d6a9f1fac46d629547716ba40859b3c666ea8250856806ba89b16ba384230": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6293,\"reason\":\"Potential out-of-bounds read in decode_nal_units due to unvalidated avpkt->size or buffer handling.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6293,
+      "reason": "Potential out-of-bounds read in decode_nal_units due to unvalidated avpkt->size or buffer handling."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4944,
+      "generated_tokens": 45
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779603.2917554
+  },
+  "e71b7ab81b333cc4e499f834871c60bcc4b8ebb58f898a037836177312268e6c": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8447,\"reason\":\"The function reads 1 byte into a user-provided buffer without checking its size, risking overflow.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8447,
+      "reason": "The function reads 1 byte into a user-provided buffer without checking its size, risking overflow."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1409,
+      "generated_tokens": 42
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779636.2055423
+  },
+  "fb0d318852790a4abf84ce361c8c259cdb0f5e8f4c333cf6dbb83a01f72061b0": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Non-vulnerable\",\"confidence\":0.0,\"reason\":\"Function returns 0 without accessing parameters or buffers. No memory operations or pointer usage detected.\"}",
+    "parsed": {
+      "label": "Non-vulnerable",
+      "label_int": 0,
+      "confidence": 0.0,
+      "reason": "Function returns 0 without accessing parameters or buffers. No memory operations or pointer usage detected."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 876,
+      "generated_tokens": 38
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779656.004
+  },
+  "c3f462615ffcfddc5ab9b8145eaa6503714dcdecc38d474bda2a97c3cf5db84b": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.9,\"reason\":\"Division by zero occurs when T1 is zero, leading to undefined behavior.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.9,
+      "reason": "Division by zero occurs when T1 is zero, leading to undefined behavior."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 1552,
+      "generated_tokens": 34
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779701.8534768
+  },
+  "d3044b7be86fbfcef1fca781c4a4841ec7a836e0ddac887a40167e2d43c1518f": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.85,\"reason\":\"Loop writes to s->windowed_samples[i] without checking buffer size. If samples array is smaller than len, causes out-of-bounds write.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.85,
+      "reason": "Loop writes to s->windowed_samples[i] without checking buffer size. If samples array is smaller than len, causes out-of-bounds write."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2358,
+      "generated_tokens": 50
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779787.7511544
+  },
+  "5d8d6927261d64bb482afc869370994a6a3f3f7cdf9ed6062c7ac3358c57261a": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.8,\"reason\":\"Potential out-of-bounds read via unchecked stream index in av_write_trailer function.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.8,
+      "reason": "Potential out-of-bounds read via unchecked stream index in av_write_trailer function."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2907,
+      "generated_tokens": 36
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779864.2828693
+  },
+  "956d35ec495582d9fd1af628138bb293081216731a1f1e3b12dcbc31b50226e6": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.6485,\"reason\":\"Potential NULL pointer dereference when s->chr is used without validation after initialization.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.6485,
+      "reason": "Potential NULL pointer dereference when s->chr is used without validation after initialization."
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 2760,
+      "generated_tokens": 38
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776779942.6777916
+  },
+  "22f48d7f7610da6b689f21b2d8ff66fdee4cd07b0f4cb236686254cdb58af025": {
+    "schema_version": 1,
+    "model_name": "Virtue-AI-HUB/VulnLLM-R-7B",
+    "raw_text": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"Use of strcpy with fixed strings like \"QEMU DVD-ROM\" lacks destination buffer size checks, risking buffer overflows if strings exceed buffer capacity.\"}",
+    "parsed": {
+      "label": "Vulnerable",
+      "label_int": 1,
+      "confidence": 0.5,
+      "reason": "FINAL_JSON: {\"label\":\"Vulnerable\",\"confidence\":0.7,\"reason\":\"Use of strcpy with fixed strings like \"QEMU DVD-ROM\" lacks destination buffer size checks, risking buffer overflows if strings exceed buffer capacity.\"}"
+    },
+    "finish_reason": "stop",
+    "usage_metadata": {
+      "prompt_tokens": 4258,
+      "generated_tokens": 48
+    },
+    "device": "cuda:0",
+    "cached_at_unix": 1776780128.9537861
+  }
+}
