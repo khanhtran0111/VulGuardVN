@@ -93,9 +93,11 @@ datasets/
 func/game
 dataset/
 
-GRACE-java/data/
-GRACE-java/eval/
-GRACE-java/index/
-GRACE-java/model/
-GRACE-java/work/
-GRACE-java/tools/
+GRACE-improve/data/
+GRACE-improve/eval/
+GRACE-improve/index/
+GRACE-improve/model/
+GRACE-improve/work/
+GRACE-improve/tools/
+GRACE-improve/baseline/artifacts
+GRACE-improve/baseline/artifacts

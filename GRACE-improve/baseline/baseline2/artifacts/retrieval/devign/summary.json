@@ -1,0 +1,23 @@
+{
+  "dataset": "devign",
+  "bank_path": "C:\\Users\\Admin\\Documents\\1. UET\\lab\\VulGuardVN\\GRACE-improve\\baseline\\baseline2\\artifacts\\retrieval\\devign\\demo_bank.joblib",
+  "total_examples": 8000,
+  "negative_examples": 4000,
+  "positive_examples": 4000,
+  "semantic_backend": "unixcoder",
+  "semantic_notice": null,
+  "semantic_config": {
+    "semantic_backend": "unixcoder",
+    "model_name": "microsoft/unixcoder-base-nine",
+    "model_dir": "C:\\Users\\Admin\\Documents\\1. UET\\lab\\VulGuardVN\\GRACE-improve\\baseline\\artifacts\\models\\retrieval\\microsoft--unixcoder-base-nine",
+    "max_length": 512,
+    "batch_size": 16,
+    "auto_download": false
+  },
+  "graph_backend_requested": "auto",
+  "graph_backend_resolved": "heuristic",
+  "graph_backend_notice": "Joern health probe failed: Joern export returned no nodes.",
+  "graph_backend_counts": {
+    "heuristic": 8000
+  }
+}
