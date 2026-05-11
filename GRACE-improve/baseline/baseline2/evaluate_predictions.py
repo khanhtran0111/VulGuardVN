@@ -57,7 +57,7 @@ def validate_predictions(
         )
     if not run_state.get("evaluation_ready"):
         raise RuntimeError(
-            "Run is not evaluation-ready. Resolve the issue in run_state and rerun script 07 before evaluating."
+            "Run is not evaluation-ready. Resolve the issue in run_state and rerun hybrid inference before evaluating."
         )
     if len(rows) != int(run_state.get("target_samples", -1)):
         raise RuntimeError(

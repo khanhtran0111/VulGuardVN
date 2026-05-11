@@ -10,6 +10,12 @@ from common import DATA_DIR, get_record_code, normalize_code, stable_hash
 
 DEVIGN_SOURCE = DATA_DIR / "function.json"
 BIGVUL_SOURCE = DATA_DIR / "MSR_data_cleaned.csv"
+BIGVUL_PARQUET_DIR = DATA_DIR / "bigvul_raw"
+BIGVUL_PARQUET_FILES = {
+    "train": BIGVUL_PARQUET_DIR / "train-00000-of-00001.parquet",
+    "val": BIGVUL_PARQUET_DIR / "validation-00000-of-00001.parquet",
+    "test": BIGVUL_PARQUET_DIR / "test-00000-of-00001.parquet",
+}
 REVEAL_SPLIT_FILES = {
     "train": DATA_DIR / "reveal" / "train.jsonl",
     "val": DATA_DIR / "reveal" / "val.jsonl",
@@ -33,11 +39,19 @@ def list_available_datasets() -> list[str]:
     datasets = []
     if DEVIGN_SOURCE.exists():
         datasets.append("devign")
-    if BIGVUL_SOURCE.exists():
+    if has_bigvul_source():
         datasets.append("bigvul")
     if discover_reveal_root():
         datasets.append("reveal")
     return datasets
+
+
+def has_bigvul_source() -> bool:
+    return BIGVUL_SOURCE.exists() or has_bigvul_parquet_source()
+
+
+def has_bigvul_parquet_source() -> bool:
+    return all(path.exists() for path in BIGVUL_PARQUET_FILES.values())
 
 
 def discover_reveal_root() -> Path | None:
@@ -144,6 +158,9 @@ def iter_devign_records() -> Iterable[dict]:
 
 
 def iter_bigvul_records() -> Iterable[dict]:
+    if has_bigvul_parquet_source():
+        yield from iter_bigvul_parquet_records()
+        return
     with BIGVUL_SOURCE.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         for index, row in enumerate(reader):
@@ -162,6 +179,32 @@ def iter_bigvul_records() -> Iterable[dict]:
                 source_path=str(BIGVUL_SOURCE.name),
                 extra={"source_row": index},
             )
+
+
+def iter_bigvul_parquet_records() -> Iterable[dict]:
+    if not has_bigvul_parquet_source():
+        return
+    row_offset = 0
+    for split_name, path in BIGVUL_PARQUET_FILES.items():
+        frame = pd.read_parquet(path)
+        for index, row in enumerate(frame.to_dict(orient="records")):
+            code = normalize_code(str(row.get("func_before", "") or ""))
+            label = _parse_label(row.get("vul"))
+            if not code or label is None:
+                continue
+            yield _canonical_record(
+                dataset="bigvul",
+                record_id=f"bigvul-{row_offset + index}",
+                code=code,
+                label=label,
+                project=_project_from_row(row),
+                commit_id=str(row.get("commit_id", "") or ""),
+                cwe_id=_cwe_from_row(row),
+                source_path=str(path.relative_to(DATA_DIR)),
+                split=split_name,
+                extra={"source_row": row_offset + index},
+            )
+        row_offset += len(frame)
 
 
 def _iter_reveal_jsonl_split(split_name: str, path: Path) -> Iterable[dict]:
