@@ -92,6 +92,7 @@ models/
 datasets/
 func/game
 dataset/
+research/
 
 GRACE-improve/data/
 GRACE-improve/eval/
@@ -101,3 +102,4 @@ GRACE-improve/work/
 GRACE-improve/tools/
 GRACE-improve/baseline/artifacts
 GRACE-improve/baseline/artifacts
+GRACE-improve/baseline2/artifacts

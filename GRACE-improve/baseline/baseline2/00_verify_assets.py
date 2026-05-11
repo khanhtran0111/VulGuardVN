@@ -7,7 +7,7 @@ from local_llm_client import DEFAULT_MODEL_REPO_ID, default_local_model_dir, dow
 from retrieval import DEFAULT_RETRIEVAL_MODEL_REPO_ID, default_retrieval_model_dir, download_retrieval_model_snapshot, is_retrieval_model_downloaded
 
 
-DATASET_NAME = os.getenv("GRACE_DATASET", "devign")
+TARGET_DATASETS = [name.strip() for name in os.getenv("GRACE_DATASETS", os.getenv("GRACE_DATASET", "devign")).split(",") if name.strip()]
 AUTO_DOWNLOAD = os.getenv("GRACE_AUTO_DOWNLOAD_MISSING", "1").strip().lower() in {"1", "true", "yes", "on"}
 SEMANTIC_MODEL_ID = os.getenv("GRACE_RETRIEVAL_MODEL_ID", DEFAULT_RETRIEVAL_MODEL_REPO_ID)
 LLM_MODEL_ID = os.getenv("GRACE_LOCAL_MODEL_ID", DEFAULT_MODEL_REPO_ID)
@@ -41,10 +41,10 @@ def main() -> None:
 
     graph_backend, graph_notice = resolve_graph_backend_with_notice("auto")
     payload = {
-        "dataset": DATASET_NAME,
+        "datasets": TARGET_DATASETS,
         "auto_download_missing": AUTO_DOWNLOAD,
         "actions": actions,
-        "splits": _split_status(DATASET_NAME),
+        "splits": {dataset_name: _split_status(dataset_name) for dataset_name in TARGET_DATASETS},
         "semantic_model": {
             "repo_id": SEMANTIC_MODEL_ID,
             "path": str(semantic_dir),

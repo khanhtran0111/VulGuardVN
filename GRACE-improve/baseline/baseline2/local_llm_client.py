@@ -267,7 +267,7 @@ class LocalVulnLLMClassifier:
         except Exception as exc:
             raise RuntimeError(
                 "Missing local LLM dependencies. Install `torch`, `transformers`, `accelerate`, "
-                "`bitsandbytes`, and `huggingface_hub` before running script 07."
+                "`bitsandbytes`, and `huggingface_hub` before hybrid inference."
             ) from exc
         self._runtime = {
             "torch": torch,
