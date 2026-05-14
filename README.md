@@ -24,9 +24,9 @@ The project uses the three datasets associated with the original GRACE benchmark
 | --- | --- | --- |
 | Devign/FFmpeg+Qemu | Function-level C/C++ vulnerability benchmark | [GRACE Devign dataset](https://drive.google.com/file/d/1x6hoF7G-tSYxg8AFybggypLZgMGDNHfF/view?usp=sharing) |
 | Big-Vul | Large-scale C/C++ vulnerability dataset collected from CVE-linked code changes | [GRACE Big-Vul dataset](https://drive.google.com/file/d/1-0VhnHBp9IGh90s2wCNjeCMuy70HPl8X/view?usp=sharing) |
-| ReVeal | Real-world deep-learning vulnerability detection benchmark | [GRACE ReVeal dataset](https://drive.google.com/drive/folders/1KuIYgFcvWUXheDhT--cBALsfy1I4utOyF) |
+| ReVeal | Real-world deep-learning vulnerability detection benchmark | [ReVeal on Hugging Face](https://huggingface.co/datasets/claudios/ReVeal) |
 
-The notebook also includes fallback sources for reproducible Kaggle execution: [CodeXGLUE Devign mirror](https://raw.githubusercontent.com/madlag/CodeXGLUE/main/Code-Code/Defect-detection/dataset/function.json), [Big-Vul on Hugging Face](https://huggingface.co/datasets/bstee615/bigvul), and [ReVeal on Hugging Face](https://huggingface.co/datasets/claudios/ReVeal).
+The notebook also includes fallback sources for reproducible Kaggle execution: [CodeXGLUE Devign mirror](https://raw.githubusercontent.com/madlag/CodeXGLUE/main/Code-Code/Defect-detection/dataset/function.json) and [Big-Vul on Hugging Face](https://huggingface.co/datasets/bstee615/bigvul). ReVeal uses the Hugging Face mirror directly because the Google Drive folder listed by the GRACE repository is unavailable.
 
 ## Method
 
