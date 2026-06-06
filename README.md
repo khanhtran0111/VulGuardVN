@@ -4,15 +4,6 @@ VulGuardVN is a function-level C/C++ vulnerability-detection research pipeline. 
 
 The repository releases prediction-level artifacts for **Devign** and aggregate result summaries for **BigVul** and **ReVeal**. Record-level outputs for the latter two datasets are not committed because they are substantially larger.
 
-## Release Status
-
-| Dataset | Code support | Default notebook run | Released artifacts in Git | Claim status |
-| --- | :---: | :---: | --- | --- |
-| Devign / FFmpeg+Qemu | Yes | Yes | Predictions, run-state, summary | Prediction-level snapshot |
-| BigVul | Yes | No, opt-in | Aggregate summary | Reported aggregate result |
-| ReVeal | Yes | No, opt-in | Aggregate summary | Reported aggregate result |
-
-This distinction matters: only Devign currently supports record-level auditing from the committed outputs.
 
 ## Public Artifacts
 
