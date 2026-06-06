@@ -4,15 +4,6 @@ VulGuardVN is a function-level C/C++ vulnerability-detection research pipeline. 
 
 The repository now has a deliberately narrow public evidence scope: **Devign results are released**, while Big-Vul and ReVeal remain supported by the implementation but do not have committed result artifacts because their generated data is substantially larger.
 
-## Release Status
-
-| Dataset | Code support | Default notebook run | Prediction results in Git | Claim status |
-| --- | :---: | :---: | :---: | --- |
-| Devign / FFmpeg+Qemu | Yes | Yes | Yes | Released result snapshot |
-| Big-Vul | Yes | No, opt-in | No | Implementation support only |
-| ReVeal | Yes | No, opt-in | No | Implementation support only |
-
-This distinction matters: the repository is not a fully self-contained three-dataset archive.
 
 ## Public Artifacts
 
