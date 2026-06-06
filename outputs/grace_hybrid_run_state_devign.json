@@ -1,0 +1,91 @@
+{
+  "dataset": "devign",
+  "schema_version": 1,
+  "cache_schema_version": 1,
+  "resolved_samples": 2726,
+  "target_samples": 2726,
+  "complete": true,
+  "evaluation_ready": true,
+  "llm_calls": 348,
+  "llm_cache_hits": 0,
+  "llm_call_ratio": 0.1276595744680851,
+  "routing": {
+    "skip": 98,
+    "inspect": 348,
+    "high": 2280
+  },
+  "decision_sources": {
+    "prefilter": 2378,
+    "llm": 348
+  },
+  "retrieval_backend": "unixcoder",
+  "graph_backend_requested": "auto",
+  "predictions_path": "/kaggle/working/vulguardvn-final/artifacts/run/predictions/devign/grace_hybrid_predictions_devign.jsonl",
+  "chunking": {
+    "chunk_index": 42,
+    "chunk_size": 64,
+    "start_offset": 2688,
+    "end_offset_exclusive": 2726,
+    "target_records_in_chunk": 38
+  },
+  "run_signature": {
+    "dataset": "devign",
+    "variant_suffix": "",
+    "prefilter_model_name": "hybrid_multiview_prefilter",
+    "llm_model_name": "unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit",
+    "graph_backend": "auto",
+    "retrieval_backend": "unixcoder",
+    "tau_low": 0.130435,
+    "tau_high": 0.266667,
+    "calibration_method": "isotonic",
+    "routing_mode": "baseline",
+    "inspect_demos": 2,
+    "high_risk_demos": 1,
+    "max_new_tokens": 96,
+    "load_in_4bit": true,
+    "call_llm_for_inspect": true,
+    "call_llm_for_high": false,
+    "verbose_logs": true,
+    "log_every_n_records": 1
+  },
+  "config": {
+    "prefilter_model_name": "hybrid_multiview_prefilter",
+    "llm_model_name": "unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit",
+    "inspect_demos": 2,
+    "high_risk_demos": 1,
+    "max_new_tokens": 96,
+    "load_in_4bit": true,
+    "call_llm_for_inspect": true,
+    "call_llm_for_high": false,
+    "verbose_logs": true,
+    "log_every_n_records": 1
+  },
+  "timing_ms": {
+    "graph_total": 120.874,
+    "graph_mean": 0.044341159207630224,
+    "retrieval_total": 83802.635,
+    "retrieval_mean": 30.74197909024211,
+    "llm_total": 4365741.252,
+    "llm_mean": 1601.5191680117389,
+    "record_total": 4450203.7700000005,
+    "record_mean": 1632.5032171680118
+  },
+  "accuracy": 0.5722670579603815,
+  "precision": 0.5213600697471665,
+  "recall": 0.9462025316455697,
+  "f1": 0.6722878021360315,
+  "tp": 1196,
+  "tn": 364,
+  "fp": 1098,
+  "fn": 68,
+  "roc_auc": 0.6985570096451887,
+  "pr_auc": 0.6484407419999199,
+  "brier": 0.2167935215669331,
+  "nll": 0.6304415370777535,
+  "ece": 0.018281968172297595,
+  "bootstrap_f1": {
+    "mean": 0.6718369508603581,
+    "low": 0.654494382936333,
+    "high": 0.6904634211405756
+  }
+}
