@@ -2,7 +2,7 @@
 
 VulGuardVN is a function-level C/C++ vulnerability-detection research pipeline. It extends a GRACE-style graph-aware, retrieval-augmented workflow with a calibrated multi-view prefilter that decides which functions require local-LLM inspection.
 
-The repository now has a deliberately narrow public evidence scope: **Devign results are released**, while Big-Vul and ReVeal remain supported by the implementation but do not have committed result artifacts because their generated data is substantially larger.
+The repository releases prediction-level artifacts for **Devign** and aggregate result summaries for **BigVul** and **ReVeal**. Record-level outputs for the latter two datasets are not committed because they are substantially larger.
 
 
 ## Public Artifacts
@@ -10,28 +10,28 @@ The repository now has a deliberately narrow public evidence scope: **Devign res
 | Artifact | Path | Role |
 | --- | --- | --- |
 | Main notebook | [full_pipeline.ipynb](full_pipeline.ipynb) | Canonical Kaggle-oriented pipeline; defaults to Devign and allows opt-in Big-Vul/ReVeal runs. |
-| Devign results | [outputs/](outputs/) | Record-level predictions, run-state, and a derived result summary. |
+| Released results | [outputs/](outputs/) | Devign record-level predictions and run-state, plus summaries for all three datasets. |
+| BigVul summary | [outputs/bigvul_results_summary.json](outputs/bigvul_results_summary.json) | Aggregate metrics and routing counts. |
+| ReVeal summary | [outputs/reveal_results_summary.json](outputs/reveal_results_summary.json) | Aggregate metrics and routing counts. |
 | Stage scripts | [GRACE-improve/baseline/baseline2/](GRACE-improve/baseline/baseline2/) | Script implementation from asset verification through evaluation. |
 | Pipeline figure | [figures/pipeline_overview.png](figures/pipeline_overview.png) | Static pipeline overview. |
 | GRACE reference material | [GRACE-main/](GRACE-main/) | Upstream paper and retained reference implementation. |
 
-## Released Devign Result
+## Released Results
 
-The committed snapshot contains 2,726 complete test predictions.
+The three released summaries use the same metric and routing field names. The BigVul and ReVeal values were converted from aggregate run outputs; they were not recomputed from record-level predictions.
 
-| Metric | Value |
-| --- | ---: |
-| Accuracy | 0.5723 |
-| Precision | 0.5214 |
-| Recall | 0.9462 |
-| F1 | 0.6723 |
-| ROC-AUC | 0.6986 |
-| PR-AUC | 0.6484 |
-| LLM call ratio | 12.77% |
+| Dataset | Samples | Accuracy | Precision | Recall | F1 | ROC-AUC | PR-AUC | LLM call ratio |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Devign | 2,726 | 0.5723 | 0.5214 | 0.9462 | 0.6723 | 0.6986 | 0.6484 | 12.77% |
+| BigVul | 21,709 | 0.9186 | 0.3350 | 0.5000 | 0.4012 | 0.8420 | 0.3890 | 93.17% |
+| ReVeal | 2,274 | 0.8492 | 0.5447 | 0.5000 | 0.5214 | 0.8290 | 0.4226 | 86.90% |
 
-The confusion matrix is `TP=1196`, `TN=364`, `FP=1098`, and `FN=68`. This is a recall-oriented operating point; the high false-positive count is material and should be reported with the headline metrics.
+The Devign snapshot contains 2,726 complete test predictions. Its confusion matrix is `TP=1196`, `TN=364`, `FP=1098`, and `FN=68`. This is a recall-oriented operating point; the high false-positive count is material and should be reported with the headline metrics.
 
 The released run used isotonic calibration with `tau_low=0.130435` and `tau_high=0.266667`. It routed 98 records to direct negative decisions, 348 to local-LLM inspection, and 2,280 to direct positive decisions. The mean generation latency was approximately 12.55 seconds per LLM call.
+
+BigVul and ReVeal do not include record-level predictions, confusion counts, calibration diagnostics, timing details, or run signatures. Their JSON summaries mark these unavailable fields explicitly rather than estimating them.
 
 ## Method Summary
 
@@ -117,11 +117,11 @@ REQUIRE_ALL_DATASETS = True
 
 The default notebook keeps TensorFlow prefilter work off the GPU so accelerator memory remains available for UniXcoder and the quantized local LLM. Restart the notebook kernel before a full run after changing device settings.
 
-The inference stage writes both JSONL and UTF-8-with-BOM CSV predictions. Big-Vul and ReVeal artifacts can be too large for ordinary Git hosting and should be stored as release assets or in an external artifact repository.
+The inference stage writes both JSONL and UTF-8-with-BOM CSV predictions. Full BigVul and ReVeal prediction artifacts can be too large for ordinary Git hosting and should be stored as release assets or in an external artifact repository.
 
 ## Reproducibility and Limitations
 
-The committed Devign package supports prediction-level auditing, not complete training reproduction. It includes predictions, run configuration, metrics, routing fields, and latency fields. It does not include:
+The committed Devign package supports prediction-level auditing, not complete training reproduction. It includes predictions, run configuration, metrics, routing fields, and latency fields. The BigVul and ReVeal packages support aggregate reporting only. The repository does not include:
 
 - raw datasets or exact generated splits;
 - feature stores and graph caches;
@@ -132,7 +132,7 @@ The committed Devign package supports prediction-level auditing, not complete tr
 
 The main seeds are 42 for dataset splitting, prefilter training, demonstration sampling, and F1 bootstrap; the inner split uses seed 43. Local-LLM decoding uses temperature 0.0. These settings reduce variation but do not guarantee bitwise determinism across TensorFlow, PyTorch, CUDA, model-library, and backend versions.
 
-Because no aligned baseline predictions are released, the repository does not currently support McNemar or paired-bootstrap superiority claims. Big-Vul and ReVeal are implementation targets only; the committed outputs must not be used as evidence for their performance.
+Because no aligned baseline predictions are released, the repository does not currently support McNemar or paired-bootstrap superiority claims. The BigVul and ReVeal summaries are evidence only for the reported aggregate values; they do not permit independent metric recomputation or prediction-level error analysis.
 
 ## Datasets
 
@@ -154,4 +154,4 @@ Retrieval can fall back to TF-IDF when the semantic encoder is unavailable in `a
 
 VulGuardVN builds on [GRACE: Empowering LLM-based software vulnerability detection with graph structure and in-context learning](https://doi.org/10.1016/j.jss.2024.112031). The upstream implementation is available from the [GRACE repository](https://github.com/P-E-Vul/GRACE).
 
-The released Devign run-state did not record a Git commit SHA, package lock, or hardware manifest. A future archival release should pin a tag or commit and publish the heavy model, split, calibration, and environment artifacts outside Git.
+The released run artifacts did not record a Git commit SHA, package lock, or hardware manifest. A future archival release should pin a tag or commit and publish the heavy model, split, calibration, prediction, and environment artifacts outside Git.

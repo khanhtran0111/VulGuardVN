@@ -1,0 +1,54 @@
+{
+  "dataset": "bigvul",
+  "paper_dataset": "BigVul",
+  "release_scope": "aggregate_result_summary",
+  "status": "predicted",
+  "samples": 21709,
+  "source_files": {},
+  "metrics": {
+    "accuracy": 0.9186,
+    "precision": 0.335,
+    "recall": 0.5,
+    "f1": 0.4012,
+    "tp": null,
+    "tn": null,
+    "fp": null,
+    "fn": null,
+    "roc_auc": 0.842,
+    "pr_auc": 0.389,
+    "brier": null,
+    "nll": null,
+    "ece": null
+  },
+  "bootstrap_f1": null,
+  "routing": {
+    "inspect": 20226,
+    "high": 1142,
+    "skip": 341
+  },
+  "decision_sources": {
+    "llm": 20226,
+    "prefilter": 1483
+  },
+  "llm_calls": 20226,
+  "llm_call_ratio": 0.9316873186236123,
+  "graph_backend_counts_for_llm_rows": null,
+  "timing_ms": null,
+  "run_signature": null,
+  "provenance": {
+    "git_commit_recorded_by_run": null,
+    "converted_from": "bigvul.txt",
+    "converted_source_bytes": 506,
+    "converted_source_sha256": "1874bb03e21aac5b8358744ba35600d2826c504e3b9873af4cc1ec0e115aa306",
+    "note": "Metrics were copied from the supplied aggregate output and were not recomputed from record-level predictions."
+  },
+  "not_included": [
+    "record-level predictions",
+    "run-state JSON",
+    "confusion matrix counts",
+    "calibration diagnostics",
+    "bootstrap interval",
+    "timing breakdown",
+    "run signature"
+  ]
+}

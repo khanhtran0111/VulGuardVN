@@ -86,13 +86,6 @@ func/repo_cache/
 
 # Data artifacts (adjust as needed)
 **/.hf_home/
-outputs/*
-!outputs/README.md
-!outputs/grace_hybrid_predictions_devign.csv
-!outputs/grace_hybrid_run_state_devign.json
-!outputs/devign_results_summary.json
-!outputs/SHA256SUMS
-reports/
 models/
 datasets/
 func/game

@@ -1,0 +1,59 @@
+{
+  "dataset": "reveal",
+  "paper_dataset": "ReVeal",
+  "release_scope": "aggregate_result_summary",
+  "status": "evaluated",
+  "samples": 2274,
+  "source_files": {},
+  "metrics": {
+    "accuracy": 0.8491644678979772,
+    "precision": 0.5447053675612601,
+    "recall": 0.5,
+    "f1": 0.5213961605584642,
+    "tp": null,
+    "tn": null,
+    "fp": null,
+    "fn": null,
+    "roc_auc": 0.828984089168723,
+    "pr_auc": 0.4226107075188181,
+    "brier": null,
+    "nll": null,
+    "ece": null
+  },
+  "bootstrap_f1": null,
+  "routing": {
+    "inspect": 1976,
+    "high": 235,
+    "skip": 63
+  },
+  "decision_sources": {
+    "llm": 1976,
+    "prefilter": 298
+  },
+  "llm_calls": 1976,
+  "llm_call_ratio": 0.8689533861037819,
+  "graph_backend_counts_for_llm_rows": null,
+  "timing_ms": null,
+  "run_signature": null,
+  "provenance": {
+    "git_commit_recorded_by_run": null,
+    "converted_from": "reveal.txt",
+    "converted_source_bytes": 1538,
+    "converted_source_sha256": "d1bbc489e166400131cbc503305681623065690e45139ca3bdf8a49f964b6270",
+    "reported_artifact_paths": {
+      "metrics": "/kaggle/working/vulguardvn-final-reveal/GRACE-improve/baseline/baseline2/artifacts/metrics/reveal/grace_hybrid_evaluation_summary.json",
+      "run_state": "/kaggle/working/vulguardvn-final-reveal/GRACE-improve/baseline/baseline2/artifacts/predictions/reveal/grace_hybrid_run_state.json",
+      "predictions": "/kaggle/working/vulguardvn-final-reveal/GRACE-improve/baseline/baseline2/artifacts/predictions/reveal/grace_hybrid_predictions.jsonl"
+    },
+    "note": "Metrics were copied from the supplied aggregate output and were not recomputed from record-level predictions. Reported Kaggle artifact paths are provenance only and are not included in this repository."
+  },
+  "not_included": [
+    "record-level predictions",
+    "run-state JSON",
+    "confusion matrix counts",
+    "calibration diagnostics",
+    "bootstrap interval",
+    "timing breakdown",
+    "run signature"
+  ]
+}
