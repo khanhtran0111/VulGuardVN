@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import time
@@ -182,6 +183,24 @@ def _load_predictions(path: Path) -> list[dict]:
     return rows
 
 
+def _write_predictions_csv(path: Path, rows: list[dict]) -> None:
+    fieldnames: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(
+                {
+                    key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+                    for key, value in row.items()
+                }
+            )
+
+
 def _prepare_prediction_file(predictions_path: Path) -> list[dict]:
     if not RESUME or not predictions_path.exists():
         return []
@@ -224,6 +243,8 @@ def _summarize_predictions(
     chunk_context: dict | None = None,
 ) -> dict:
     rows = _load_predictions(predictions_path)
+    predictions_csv_path = predictions_path.with_suffix(".csv")
+    _write_predictions_csv(predictions_csv_path, rows)
     routing = {"skip": 0, "inspect": 0, "high": 0}
     decision_sources = {"prefilter": 0, "llm": 0}
     llm_cache_hits = 0
@@ -251,6 +272,7 @@ def _summarize_predictions(
         "retrieval_backend": bank.get("semantic_backend"),
         "graph_backend_requested": GRAPH_BACKEND,
         "predictions_path": str(predictions_path),
+        "predictions_csv_path": str(predictions_csv_path),
         "chunking": chunk_context,
         "run_signature": run_signature,
         "config": {

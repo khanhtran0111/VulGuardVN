@@ -1,0 +1,95 @@
+{
+  "dataset": "devign",
+  "release_scope": "lightweight_prediction_package",
+  "source_files": {
+    "grace_hybrid_predictions_devign.csv": {
+      "bytes": 685839,
+      "sha256": "73f13e88ae33820baa81c5a4103218bf731063e52ea0b27145f794cb6cfa132a"
+    },
+    "grace_hybrid_run_state_devign.json": {
+      "bytes": 2511,
+      "sha256": "5823095ae8125e29e3698e30a4a1434d8a1f56685dc0d57f597f42f1372da5aa"
+    }
+  },
+  "metrics": {
+    "accuracy": 0.5722670579603815,
+    "precision": 0.5213600697471665,
+    "recall": 0.9462025316455697,
+    "f1": 0.6722878021360316,
+    "tp": 1196,
+    "tn": 364,
+    "fp": 1098,
+    "fn": 68,
+    "roc_auc": 0.6985570096451886,
+    "pr_auc": 0.6484407419999196,
+    "brier": 0.2167935215669331,
+    "nll": 0.6304415370777535,
+    "ece": 0.01828196817229763
+  },
+  "bootstrap_f1": {
+    "mean": 0.6718369508603581,
+    "low": 0.654494382936333,
+    "high": 0.6904634211405756
+  },
+  "routing": {
+    "high": 2280,
+    "inspect": 348,
+    "skip": 98
+  },
+  "decision_sources": {
+    "prefilter": 2378,
+    "llm": 348
+  },
+  "llm_calls": 348,
+  "llm_call_ratio": 0.1276595744680851,
+  "graph_backend_counts_for_llm_rows": {
+    "heuristic": 348
+  },
+  "timing_ms": {
+    "graph_total": 120.874,
+    "graph_mean": 0.044341159207630224,
+    "retrieval_total": 83802.635,
+    "retrieval_mean": 30.74197909024211,
+    "llm_total": 4365741.252,
+    "llm_mean": 1601.5191680117389,
+    "record_total": 4450203.7700000005,
+    "record_mean": 1632.5032171680118,
+    "retrieval_mean_per_llm_call": 240.81216954022986,
+    "llm_mean_per_llm_call": 12545.233482758622
+  },
+  "run_signature": {
+    "dataset": "devign",
+    "variant_suffix": "",
+    "prefilter_model_name": "hybrid_multiview_prefilter",
+    "llm_model_name": "unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit",
+    "graph_backend": "auto",
+    "retrieval_backend": "unixcoder",
+    "tau_low": 0.130435,
+    "tau_high": 0.266667,
+    "calibration_method": "isotonic",
+    "routing_mode": "baseline",
+    "inspect_demos": 2,
+    "high_risk_demos": 1,
+    "max_new_tokens": 96,
+    "load_in_4bit": true,
+    "call_llm_for_inspect": true,
+    "call_llm_for_high": false,
+    "verbose_logs": true,
+    "log_every_n_records": 1
+  },
+  "provenance": {
+    "git_commit_recorded_by_run": null,
+    "note": "The supplied run-state did not record a Git commit. Do not infer run provenance from the current checkout."
+  },
+  "not_included": [
+    "raw or split datasets",
+    "feature stores",
+    "trained prefilter weights and vocabularies",
+    "calibration JSON",
+    "demonstration bank",
+    "baseline predictions",
+    "paired aligned_predictions.csv",
+    "Big-Vul results",
+    "ReVeal results"
+  ]
+}

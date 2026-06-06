@@ -5,7 +5,15 @@ import time
 from pathlib import Path
 from typing import Any
 
-from common import CACHE_DIR, SHARED_MODELS_DIR, build_structure_summary, ensure_dir, load_json, stable_hash, truncate_text
+from common import (
+    CACHE_DIR,
+    SHARED_MODELS_DIR,
+    build_structure_summary,
+    ensure_dir,
+    load_json as _common_load_json,
+    stable_hash,
+    truncate_text,
+)
 
 
 EVIDENCE_SCHEMA_ENABLED = os.getenv("GRACE_EVIDENCE_AWARE_VERIFIER", "0").strip().lower() in {"1", "true", "yes", "on"}
@@ -101,7 +109,7 @@ class LocalVulnLLMClassifier:
         self.auto_download = auto_download
         self.cache_path = cache_path or (CACHE_DIR / "local_vulnllm_cache.json")
         ensure_dir(self.cache_path.parent)
-        self.cache = load_json(self.cache_path, default={})
+        self.cache = _common_load_json(self.cache_path, default={})
         self._runtime: dict[str, Any] | None = None
         self._model = None
         self._tokenizer = None

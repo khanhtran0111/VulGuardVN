@@ -1,70 +1,166 @@
 # VulGuardVN
 
-VulGuardVN is a research project on function-level vulnerability detection for C/C++ source code. It rebuilds a GRACE-style graph-aware and retrieval-augmented LLM workflow, then extends that workflow with a learned multi-view prefilter. The goal is to reduce unnecessary detailed LLM inspection while preserving a security-oriented emphasis on vulnerability recall.
+VulGuardVN is a function-level C/C++ vulnerability-detection research pipeline. It extends a GRACE-style graph-aware, retrieval-augmented workflow with a calibrated multi-view prefilter that decides which functions require local-LLM inspection.
 
-The project is based on the GRACE paper, [GRACE: Empowering LLM-based software vulnerability detection with graph structure and in-context learning](https://doi.org/10.1016/j.jss.2024.112031), published in the Journal of Systems and Software, Volume 212, June 2024, Article 112031. The original paper is also available on [ScienceDirect](https://www.sciencedirect.com/science/article/pii/S0164121224000748), and the official implementation is hosted in the [GRACE GitHub repository](https://github.com/P-E-Vul/GRACE).
+The repository now has a deliberately narrow public evidence scope: **Devign results are released**, while Big-Vul and ReVeal remain supported by the implementation but do not have committed result artifacts because their generated data is substantially larger.
 
-## Research Objective
+## Release Status
 
-VulGuardVN studies whether a multi-view prefilter can improve the efficiency of GRACE-style binary vulnerability detection on Devign/FFmpeg+Qemu, Big-Vul, and ReVeal. Instead of sending every function directly to LLM inspection, the pipeline estimates vulnerability risk from lexical, syntactic, semantic, and graph-derived views, then uses calibrated thresholds to decide which samples need detailed analysis.
+| Dataset | Code support | Default notebook run | Prediction results in Git | Claim status |
+| --- | :---: | :---: | :---: | --- |
+| Devign / FFmpeg+Qemu | Yes | Yes | Yes | Released result snapshot |
+| Big-Vul | Yes | No, opt-in | No | Implementation support only |
+| ReVeal | Yes | No, opt-in | No | Implementation support only |
 
-The central question is whether this routing strategy can reduce LLM usage while retaining enough suspicious cases for graph-aware and retrieval-augmented inspection.
+This distinction matters: the repository is not a fully self-contained three-dataset archive.
 
 ## Public Artifacts
 
-The main experiment notebook is [full_pipeline.ipynb](full_pipeline.ipynb) at the repository root. Earlier draft text referred to `GRACE-improve/baseline/baseline2/FINAL.ipynb`; that notebook has been moved and renamed in the public repository.
-
 | Artifact | Path | Role |
 | --- | --- | --- |
-| Main experiment notebook | [full_pipeline.ipynb](full_pipeline.ipynb) | Canonical public notebook for the Kaggle-oriented end-to-end experiment. |
-| Stage scripts | [GRACE-improve/baseline/baseline2/](GRACE-improve/baseline/baseline2/) | Script implementation of the same pipeline stages, from `00_verify_assets.py` through `08_evaluate_predictions.py`. |
-| Pipeline figure | [figures/pipeline_overview.png](figures/pipeline_overview.png) | Static overview of the VulGuardVN pipeline. |
-| GRACE reference material | [GRACE-main/](GRACE-main/) | Upstream GRACE assets retained for provenance and comparison. |
+| Main notebook | [full_pipeline.ipynb](full_pipeline.ipynb) | Canonical Kaggle-oriented pipeline; defaults to Devign and allows opt-in Big-Vul/ReVeal runs. |
+| Devign results | [outputs/](outputs/) | Record-level predictions, run-state, and a derived result summary. |
+| Stage scripts | [GRACE-improve/baseline/baseline2/](GRACE-improve/baseline/baseline2/) | Script implementation from asset verification through evaluation. |
+| Pipeline figure | [figures/pipeline_overview.png](figures/pipeline_overview.png) | Static pipeline overview. |
+| GRACE reference material | [GRACE-main/](GRACE-main/) | Upstream paper and retained reference implementation. |
 
-## Pipeline Overview
+## Released Devign Result
 
-![Pipeline overview](figures/pipeline_overview.png)
+The committed snapshot contains 2,726 complete test predictions.
 
-The pipeline starts from normalized C/C++ function records. It builds numeric and graph-aware features, semantic embeddings, AST-like sequences, and token sequences. A hybrid prefilter estimates vulnerability probability, a calibration layer derives low/high routing thresholds, and the GRACE-style inspection module resolves uncertain cases using retrieved demonstrations, graph context, suspicious-slice localization, and a local LLM.
+| Metric | Value |
+| --- | ---: |
+| Accuracy | 0.5723 |
+| Precision | 0.5214 |
+| Recall | 0.9462 |
+| F1 | 0.6723 |
+| ROC-AUC | 0.6986 |
+| PR-AUC | 0.6484 |
+| LLM call ratio | 12.77% |
+
+The confusion matrix is `TP=1196`, `TN=364`, `FP=1098`, and `FN=68`. This is a recall-oriented operating point; the high false-positive count is material and should be reported with the headline metrics.
+
+The released run used isotonic calibration with `tau_low=0.130435` and `tau_high=0.266667`. It routed 98 records to direct negative decisions, 348 to local-LLM inspection, and 2,280 to direct positive decisions. The mean generation latency was approximately 12.55 seconds per LLM call.
+
+## Method Summary
+
+```mermaid
+flowchart LR
+    accTitle: VulGuardVN Decision Flow
+    accDescr: Four prefilter views produce a calibrated score. Low and high bands receive direct decisions, while the inspect band is sent to a local LLM under the released Devign policy.
+
+    functions["C/C++ functions"]
+    views["Token, structural,<br/>semantic, numeric views"]
+    prefilter["Multi-view CNN prefilter"]
+    calibration["Probability calibration"]
+    routing{"Risk band"}
+    skip["Skip<br/>direct negative"]
+    inspect["Inspect<br/>local LLM"]
+    high["High<br/>direct positive"]
+    results["Predictions"]
+
+    functions --> views
+    views --> prefilter
+    prefilter --> calibration
+    calibration --> routing
+    routing -->|low| skip
+    routing -->|middle| inspect
+    routing -->|high| high
+    skip --> results
+    inspect --> results
+    high --> results
+
+    classDef input fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a5f
+    classDef model fill:#ede9fe,stroke:#7c3aed,stroke-width:1px,color:#4c1d95
+    classDef decision fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+    classDef output fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
+
+    class functions input
+    class views,prefilter,calibration,inspect model
+    class routing,skip,high decision
+    class results output
+```
+
+The prefilter combines four views:
+
+| View | Implementation |
+| --- | --- |
+| Token sequence | Embedding, two `Conv1D` layers, and global max pooling. |
+| Structural sequence | An AST-like linearization encoded by a lightweight CNN. |
+| Semantic embedding | Precomputed UniXcoder embeddings with a dense projection. |
+| Numeric summary | Twenty-four code and graph scalar features. |
+
+The default prefilter uses Adam with learning rate `7e-4`, batch size 128, at most 10 epochs, dropout 0.25, and seed 42. Binary cross-entropy is the default loss; focal loss and hard-negative mining are optional rather than part of every run.
+
+This is not an end-to-end GNN. Graph structure comes from Joern when available and otherwise from a heuristic fallback. The calibrated score is routed into `skip`, `inspect`, and `high` bands:
+
+| Band | Condition | Default action |
+| --- | --- | --- |
+| `skip` | `p <= tau_low` | Direct negative |
+| `inspect` | `tau_low < p < tau_high` | Call the local LLM when enabled |
+| `high` | `p >= tau_high` | Direct positive unless high-band inspection is enabled |
+
+The local verifier receives source code, suspicious slices, graph summaries, calibrated scores, and retrieved demonstrations. The released Devign run inspected only the middle band, used the heuristic graph backend for all 348 LLM calls, and did not enable evidence-enforced verification.
+
+## Run the Notebook
+
+The first configuration cell in [full_pipeline.ipynb](full_pipeline.ipynb) defaults to:
+
+```python
+DATASET_NAMES = ["devign"]
+REQUIRE_ALL_DATASETS = False
+```
+
+To run a larger dataset, opt in explicitly:
+
+```python
+DATASET_NAMES = ["bigvul"]  # or ["reveal"]
+```
+
+For a multi-dataset run:
+
+```python
+DATASET_NAMES = ["devign", "bigvul", "reveal"]
+REQUIRE_ALL_DATASETS = True
+```
+
+The default notebook keeps TensorFlow prefilter work off the GPU so accelerator memory remains available for UniXcoder and the quantized local LLM. Restart the notebook kernel before a full run after changing device settings.
+
+The inference stage writes both JSONL and UTF-8-with-BOM CSV predictions. Big-Vul and ReVeal artifacts can be too large for ordinary Git hosting and should be stored as release assets or in an external artifact repository.
+
+## Reproducibility and Limitations
+
+The committed Devign package supports prediction-level auditing, not complete training reproduction. It includes predictions, run configuration, metrics, routing fields, and latency fields. It does not include:
+
+- raw datasets or exact generated splits;
+- feature stores and graph caches;
+- trained prefilter weights and vocabularies;
+- calibration files and the demonstration bank;
+- local model snapshots;
+- baseline predictions aligned by `record_id`.
+
+The main seeds are 42 for dataset splitting, prefilter training, demonstration sampling, and F1 bootstrap; the inner split uses seed 43. Local-LLM decoding uses temperature 0.0. These settings reduce variation but do not guarantee bitwise determinism across TensorFlow, PyTorch, CUDA, model-library, and backend versions.
+
+Because no aligned baseline predictions are released, the repository does not currently support McNemar or paired-bootstrap superiority claims. Big-Vul and ReVeal are implementation targets only; the committed outputs must not be used as evidence for their performance.
 
 ## Datasets
 
-The project targets the three datasets associated with the GRACE benchmark setting.
-
-| Dataset | Role in the experiment | Public source used by the notebook |
-| --- | --- | --- |
-| Devign/FFmpeg+Qemu | Function-level C/C++ vulnerability benchmark | [GRACE Devign dataset](https://drive.google.com/file/d/1x6hoF7G-tSYxg8AFybggypLZgMGDNHfF/view?usp=sharing), with a [CodeXGLUE mirror](https://raw.githubusercontent.com/madlag/CodeXGLUE/main/Code-Code/Defect-detection/dataset/function.json) fallback |
-| Big-Vul | Large-scale C/C++ vulnerability dataset collected from CVE-linked code changes | [GRACE Big-Vul dataset](https://drive.google.com/file/d/1-0VhnHBp9IGh90s2wCNjeCMuy70HPl8X/view?usp=sharing), with [Big-Vul on Hugging Face](https://huggingface.co/datasets/bstee615/bigvul) as a fallback |
-| ReVeal | Real-world deep-learning vulnerability detection benchmark | [ReVeal on Hugging Face](https://huggingface.co/datasets/claudios/ReVeal) |
-
-For direct script execution, raw data is expected under `GRACE-improve/data/` using the filenames handled by [datasets.py](GRACE-improve/baseline/baseline2/datasets.py).
-
-| Dataset | Expected local location |
+| Dataset | Supported source |
 | --- | --- |
-| Devign | `GRACE-improve/data/function.json` |
-| Big-Vul | `GRACE-improve/data/MSR_data_cleaned.csv` or `GRACE-improve/data/bigvul_raw/{train,validation,test}-00000-of-00001.parquet` |
-| ReVeal | `GRACE-improve/data/reveal/{train,val,test}.jsonl` or another supported ReVeal candidate directory |
+| Devign | GRACE Google Drive source with a CodeXGLUE mirror fallback |
+| Big-Vul | GRACE CSV source or Hugging Face parquet fallback |
+| ReVeal | Hugging Face parquet or supported local split directories |
 
-ReVeal official splits are preserved when present. Devign and Big-Vul use reproducible stratified group splits.
+Raw datasets and generated splits are intentionally not committed. Consult `datasets.py` and the notebook configuration cell for accepted local paths.
 
-## Method
+## Models and Backends
 
-VulGuardVN follows a compact GRACE-style hybrid design:
+The default semantic encoder is `microsoft/unixcoder-base-nine`. The default local verifier is `unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit`.
 
-1. Normalize source-code records from the target datasets into a shared function-level schema.
-2. Build reproducible train, validation, and test splits.
-3. Extract lexical, syntactic, semantic, and graph-aware features from each function.
-4. Train a dataset-specific hybrid prefilter to estimate vulnerability probability.
-5. Calibrate validation probabilities and derive routing thresholds.
-6. Apply retrieval-augmented and graph-aware LLM inspection only to samples that require detailed analysis.
-7. Evaluate binary vulnerability detection and report the LLM call ratio as the main efficiency indicator.
+Retrieval can fall back to TF-IDF when the semantic encoder is unavailable in `auto` mode. Graph extraction can fall back from Joern to the heuristic extractor. Any experiment report must disclose the resolved backends rather than only the requested `auto` settings.
 
-## Environment and Models
+## Research Provenance
 
-The notebook is designed for running on GPU. The default semantic encoder is [microsoft/unixcoder-base-nine](https://huggingface.co/microsoft/unixcoder-base-nine), and the default local LLM is [unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit](https://huggingface.co/unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit).
+VulGuardVN builds on [GRACE: Empowering LLM-based software vulnerability detection with graph structure and in-context learning](https://doi.org/10.1016/j.jss.2024.112031). The upstream implementation is available from the [GRACE repository](https://github.com/P-E-Vul/GRACE).
 
-Graph extraction uses automatic backend selection. When Joern is available, the pipeline can use it; otherwise it falls back to the repository's heuristic graph extractor.
-
-## Evaluation
-
-Evaluation reports accuracy, precision, recall, F1, ROC-AUC, PR-AUC, and LLM call ratio. The LLM call ratio measures the fraction of test samples that required detailed LLM inspection after calibrated routing.
+The released Devign run-state did not record a Git commit SHA, package lock, or hardware manifest. A future archival release should pin a tag or commit and publish the heavy model, split, calibration, and environment artifacts outside Git.
