@@ -19,6 +19,7 @@ This distinction matters: only Devign currently supports record-level auditing f
 | Artifact | Path | Role |
 | --- | --- | --- |
 | Main notebook | [full_pipeline.ipynb](full_pipeline.ipynb) | Canonical Kaggle-oriented pipeline; defaults to Devign and allows opt-in Big-Vul/ReVeal runs. |
+| Multi-seed experiment notebook | [GRACE-improve/grace-improve.ipynb](GRACE-improve/grace-improve.ipynb) | Devign-focused execution log for seeds 1, 7, 21, 42, and 100. |
 | Released results | [outputs/](outputs/) | Devign record-level predictions and run-state, plus summaries for all three datasets. |
 | BigVul summary | [outputs/bigvul_results_summary.json](outputs/bigvul_results_summary.json) | Aggregate metrics and routing counts. |
 | ReVeal summary | [outputs/reveal_results_summary.json](outputs/reveal_results_summary.json) | Aggregate metrics and routing counts. |
@@ -41,6 +42,23 @@ The Devign snapshot contains 2,726 complete test predictions. Its confusion matr
 The released run used isotonic calibration with `tau_low=0.130435` and `tau_high=0.266667`. It routed 98 records to direct negative decisions, 348 to local-LLM inspection, and 2,280 to direct positive decisions. The mean generation latency was approximately 12.55 seconds per LLM call.
 
 BigVul and ReVeal do not include record-level predictions, confusion counts, calibration diagnostics, timing details, or run signatures. Their JSON summaries mark these unavailable fields explicitly rather than estimating them.
+
+## Multi-Seed Robustness Check
+
+In addition to the released Devign snapshot above, the full Devign pipeline was rerun with seeds **1, 7, 21, 42, and 100**. Each seed was applied to the data split, prefilter training, and demonstration sampling. The resulting test splits contain slightly different numbers of samples, so these runs should be read as a robustness check rather than as repeated evaluation on one fixed test set.
+
+| Seed | Samples | Accuracy | Precision | Recall | F1 | ROC-AUC | PR-AUC | LLM call ratio |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2,733 | 0.5774 | 0.5192 | 0.9258 | 0.6653 | 0.7008 | 0.6361 | 16.14% |
+| 7 | 2,732 | 0.5860 | 0.5199 | 0.9012 | 0.6594 | 0.6893 | 0.6114 | 16.76% |
+| 21 | 2,732 | 0.5985 | 0.5321 | 0.8893 | 0.6659 | 0.7000 | 0.6314 | 21.89% |
+| 42 | 2,726 | 0.5712 | 0.5207 | 0.9454 | 0.6715 | 0.6986 | 0.6484 | 12.77% |
+| 100 | 2,734 | 0.5805 | 0.5209 | 0.9452 | 0.6716 | 0.7038 | 0.6491 | 14.30% |
+| **Mean +/- SD** | - | **0.5827 +/- 0.0103** | **0.5226 +/- 0.0054** | **0.9214 +/- 0.0255** | **0.6668 +/- 0.0051** | **0.6985 +/- 0.0055** | **0.6353 +/- 0.0154** | **16.37% +/- 3.46%** |
+
+Across the five runs, F1 remains within `0.6594-0.6716` and ROC-AUC within `0.6893-0.7038`. This suggests that the overall Devign result is not dependent on a single favorable seed, although recall and the proportion of samples routed to the LLM vary more noticeably. These values come from the execution logs in the multi-seed notebook and are reported separately from the committed Devign prediction snapshot.
+
+Complete BigVul and ReVeal run directories were not added to the repository because their prediction exports, feature stores, graph caches, and intermediate model artifacts are too large for practical Git hosting. To keep the repository lightweight and reviewable, the available aggregate summaries are retained under `outputs/`, while claims for those two datasets are deliberately limited to aggregate-level results. This packaging decision should not be interpreted as prediction-level reproducibility: independent per-record auditing would require the corresponding external artifacts.
 
 ## Method Summary
 
