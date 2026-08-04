@@ -13,7 +13,6 @@ import importlib.metadata
 import json
 import os
 import platform
-import shutil
 import subprocess
 import sys
 import time
@@ -252,7 +251,22 @@ def _collect_runtime(config: ExperimentConfig, stage_timings: dict[str, float]) 
     return payload
 
 
-def run_one(config: ExperimentConfig, *, dry_run: bool, resume: bool, smoke: bool, selected_stages: set[str] | None) -> str:
+def run_one(
+    config: ExperimentConfig,
+    *,
+    dry_run: bool,
+    resume: bool,
+    smoke: bool,
+    selected_stages: set[str] | None,
+    session_budget_hours: float | None = None,
+    min_remaining_minutes: float = 20.0,
+    session_start_epoch: float | None = None,
+) -> str:
+    runner_started = time.perf_counter()
+    def session_elapsed_seconds() -> float:
+        if session_start_epoch is not None:
+            return max(time.time() - session_start_epoch, 0.0)
+        return time.perf_counter() - runner_started
     run_dir = config.run_directory
     if is_complete(run_dir):
         print(f"[skip] complete run: {run_dir}")
@@ -275,10 +289,38 @@ def run_one(config: ExperimentConfig, *, dry_run: bool, resume: bool, smoke: boo
     env = _stage_environment(config, smoke, resume)
 
     _write_json(run_dir / "run_metadata.json", build_metadata(config, "running"))
-    for name, command in commands:
+    for stage_index, (name, command) in enumerate(commands):
         if resume and name in stage_state.get("completed", []):
             print(f"[resume] stage already complete: {name}")
             continue
+        elapsed_seconds = session_elapsed_seconds()
+        remaining_seconds = None if session_budget_hours is None else session_budget_hours * 3600.0 - elapsed_seconds
+        previous_duration_ms = (stage_state.get("runtime_ms") or {}).get(name)
+        safety_seconds = min_remaining_minutes * 60.0
+        insufficient_buffer = remaining_seconds is not None and remaining_seconds <= safety_seconds
+        insufficient_estimate = (
+            remaining_seconds is not None
+            and previous_duration_ms is not None
+            and float(previous_duration_ms) / 1000.0 > max(remaining_seconds - safety_seconds, 0.0)
+        )
+        if insufficient_buffer or insufficient_estimate:
+            stage_state["stopped_before_stage"] = name
+            stage_state["partial_reason"] = "kaggle_session_time_guard"
+            _write_json(stage_state_path, stage_state)
+            runtime = _collect_runtime(config, stage_state.get("runtime_ms", {}))
+            _write_json(run_dir / "runtime.json", runtime)
+            _write_json(
+                run_dir / "run_metadata.json",
+                build_metadata(
+                    config,
+                    "partial",
+                    stopped_before_stage=name,
+                    elapsed_seconds=float(elapsed_seconds),
+                    remaining_seconds=None if remaining_seconds is None else float(max(remaining_seconds, 0.0)),
+                ),
+            )
+            print(f"[partial] time guard stopped before stage={name}; artifacts are resumable at {run_dir}")
+            return "partial"
         print(f"[stage:{name}] {' '.join(command)}")
         started = time.perf_counter()
         result = subprocess.run(command, cwd=REPOSITORY_ROOT, env=env, check=False)
@@ -292,6 +334,15 @@ def run_one(config: ExperimentConfig, *, dry_run: bool, resume: bool, smoke: boo
         if name == "splits":
             stage_state["test_split_fingerprint"] = _validate_split_manifest(config)
         _write_json(stage_state_path, stage_state)
+        elapsed_seconds = session_elapsed_seconds()
+        remaining_seconds = None if session_budget_hours is None else max(session_budget_hours * 3600.0 - elapsed_seconds, 0.0)
+        next_name = commands[stage_index + 1][0] if stage_index + 1 < len(commands) else None
+        next_estimate = (stage_state.get("runtime_ms") or {}).get(next_name) if next_name else None
+        print(
+            f"[time] elapsed={elapsed_seconds / 60.0:.1f}min"
+            + (f" | remaining={remaining_seconds / 60.0:.1f}min" if remaining_seconds is not None else "")
+            + (f" | next={next_name} | prior_estimate={float(next_estimate) / 60000.0:.1f}min" if next_estimate is not None else "")
+        )
 
     runtime = _collect_runtime(config, stage_state.get("runtime_ms", {}))
     baseline_runtime_path = (
@@ -328,6 +379,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--smoke", action="store_true", help="Tiny no-LLM development run; not a paper result.")
+    parser.add_argument("--session-budget-hours", type=float, help="Stop before a new stage when the session budget is nearly exhausted.")
+    parser.add_argument("--min-remaining-minutes", type=float, default=20.0)
+    parser.add_argument("--session-start-epoch", type=float, help="UTC epoch captured near notebook start for whole-session accounting.")
     return parser.parse_args()
 
 
@@ -360,6 +414,9 @@ def main() -> None:
                     statuses.append(run_one(
                         configured, dry_run=args.dry_run, resume=args.resume,
                         smoke=args.smoke, selected_stages=set(args.stage) if args.stage else None,
+                        session_budget_hours=args.session_budget_hours,
+                        min_remaining_minutes=args.min_remaining_minutes,
+                        session_start_epoch=args.session_start_epoch,
                     ))
     print(json.dumps({"runs": len(statuses), "statuses": statuses}, indent=2))
 

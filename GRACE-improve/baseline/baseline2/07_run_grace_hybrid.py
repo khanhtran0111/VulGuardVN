@@ -57,6 +57,7 @@ PREDICTION_FILE_STEM = os.getenv("GRACE_PREDICTION_FILE_STEM") or (f"grace_hybri
 RUN_STATE_FILE_STEM = os.getenv("GRACE_RUN_STATE_FILE_STEM") or (f"grace_hybrid_run_state_{VARIANT_SUFFIX}" if VARIANT_SUFFIX else "grace_hybrid_run_state")
 METRICS_FILE_STEM = os.getenv("GRACE_EVALUATION_FILE_STEM") or (f"grace_hybrid_evaluation_summary_{VARIANT_SUFFIX}" if VARIANT_SUFFIX else "grace_hybrid_evaluation_summary")
 EVIDENCE_AWARE_VERIFIER = _env_flag("GRACE_EVIDENCE_AWARE_VERIFIER", False)
+FORCE_INSPECT_ALL = _env_flag("GRACE_FORCE_INSPECT_ALL", False)
 CALIBRATION_PATH_OVERRIDE = Path(os.getenv("GRACE_CALIBRATION_OUTPUT_PATH")) if os.getenv("GRACE_CALIBRATION_OUTPUT_PATH") else None
 DEMO_BANK_PATH_OVERRIDE = Path(os.getenv("GRACE_DEMO_BANK_PATH")) if os.getenv("GRACE_DEMO_BANK_PATH") else None
 PREDICTIONS_PATH_OVERRIDE = Path(os.getenv("GRACE_PREDICTIONS_PATH")) if os.getenv("GRACE_PREDICTIONS_PATH") else None
@@ -66,6 +67,8 @@ BOOTSTRAP_SEED = int(os.getenv("GRACE_BOOTSTRAP_SEED", "42"))
 
 
 def _risk_band(probability: float, tau_low: float, tau_high: float) -> str:
+    if FORCE_INSPECT_ALL:
+        return "inspect"
     if probability <= tau_low:
         return "skip"
     if probability >= tau_high:
@@ -232,6 +235,8 @@ def _build_run_signature(calibration: dict, bank: dict) -> dict:
         "load_in_4bit": LOAD_IN_4BIT,
         "call_llm_for_inspect": CALL_LLM_FOR_INSPECT,
         "call_llm_for_high": CALL_LLM_FOR_HIGH,
+        "delta_high": 0 if CALL_LLM_FOR_HIGH else 1,
+        "force_inspect_all": FORCE_INSPECT_ALL,
     }
 
 
@@ -320,6 +325,7 @@ def _summarize_predictions(
             "call_llm_for_inspect": CALL_LLM_FOR_INSPECT,
             "call_llm_for_high": CALL_LLM_FOR_HIGH,
             "delta_high": 0 if CALL_LLM_FOR_HIGH else 1,
+            "force_inspect_all": FORCE_INSPECT_ALL,
         },
     }
     if rows:

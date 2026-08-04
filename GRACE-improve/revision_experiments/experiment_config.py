@@ -72,6 +72,7 @@ class ExperimentConfig:
     target_recall: float = 0.995
     call_llm_for_inspect: bool = True
     call_llm_for_high: bool = False
+    force_inspect_all: bool = False
     enabled_views: tuple[str, ...] = ALL_VIEWS
     output_directory: str = "GRACE-improve/revision_results"
     graph_backend: str = "auto"
@@ -130,6 +131,7 @@ class ExperimentConfig:
             "GRACE_TARGET_RECALL": str(self.target_recall),
             "GRACE_CALL_LLM_FOR_INSPECT": str(self.call_llm_for_inspect).lower(),
             "GRACE_CALL_LLM_FOR_HIGH": str(self.call_llm_for_high).lower(),
+            "GRACE_FORCE_INSPECT_ALL": str(self.force_inspect_all).lower(),
             "GRACE_ENABLED_VIEWS": ",".join(self.enabled_views),
             "GRACE_GRAPH_BACKEND": self.graph_backend,
             "GRACE_RETRIEVAL_BACKEND": self.retrieval_backend,
@@ -173,7 +175,7 @@ def from_mapping(payload: dict[str, Any]) -> ExperimentConfig:
     values = dict(payload)
     if "enabled_views" in values:
         values["enabled_views"] = parse_views(values["enabled_views"])
-    for name in ("call_llm_for_inspect", "call_llm_for_high"):
+    for name in ("call_llm_for_inspect", "call_llm_for_high", "force_inspect_all"):
         if name in values:
             values[name] = _as_bool(values[name])
     for name in ("split_seed", "training_seed", "demo_seed", "bootstrap_seed"):
@@ -207,6 +209,7 @@ def from_environment(default: ExperimentConfig | None = None) -> ExperimentConfi
         "GRACE_TARGET_RECALL": "target_recall",
         "GRACE_CALL_LLM_FOR_INSPECT": "call_llm_for_inspect",
         "GRACE_CALL_LLM_FOR_HIGH": "call_llm_for_high",
+        "GRACE_FORCE_INSPECT_ALL": "force_inspect_all",
         "GRACE_ENABLED_VIEWS": "enabled_views",
         "GRACE_RUN_OUTPUT_DIR": "output_directory",
         "GRACE_GRAPH_BACKEND": "graph_backend",
@@ -267,10 +270,9 @@ def validate_fixed_test_records(manifests_by_training_seed: dict[int, Iterable[d
 def config_for_configuration(config: ExperimentConfig, configuration: str) -> ExperimentConfig:
     updates: dict[str, Any] = {"configuration": configuration}
     if configuration == "reproduced_baseline":
-        # Non-selective local GRACE: all non-degenerate calibrated scores are
-        # routed to downstream inspection.  Thresholds remain validation
-        # configuration, never test-selected.
-        updates.update({"tau_low": 0.0, "tau_high": 1.0, "call_llm_for_inspect": True, "call_llm_for_high": True})
+        # Non-selective local GRACE uses an explicit routing override.  This
+        # also covers calibrated probabilities that are exactly 0 or 1.
+        updates.update({"call_llm_for_inspect": True, "call_llm_for_high": True, "force_inspect_all": True})
     if config.experiment_name == "E02_leave_one_view_out":
         updates["enabled_views"] = ABLATION_VIEWS[configuration]
     if config.experiment_name == "E05_routing_policy" and configuration in ROUTING_POLICIES:
