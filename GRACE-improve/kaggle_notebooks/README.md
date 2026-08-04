@@ -33,6 +33,24 @@ artifacts and do not retrain or invoke the LLM.
 The dependency cell checks imports before installing anything. It does not
 upgrade existing TensorFlow, PyTorch, or CUDA packages.
 
+## Dataset and model inputs
+
+E01, E02, and E05 run a fail-fast preflight before starting the pipeline:
+
+- `DEVIGN_INPUT` points to a Kaggle Dataset containing `function.json`. The
+  file is validated and copied to `GRACE-improve/data/function.json`, which is
+  the exact path read by `baseline2/datasets.py`.
+- `SEMANTIC_MODEL_INPUT` may point to a mounted UniXcoder snapshot. Otherwise,
+  enable Internet and set `AUTO_DOWNLOAD_SEMANTIC_MODEL = True`.
+- `QWEN_MODEL_INPUT` may point to a mounted Qwen snapshot. For full runs, an
+  absent snapshot requires Internet and `AUTO_DOWNLOAD_MODEL = True`.
+
+Mounted model directories are passed through `GRACE_RETRIEVAL_MODEL_DIR` and
+`GRACE_LOCAL_MODEL_DIR`; Kaggle inputs remain read-only. Missing or incomplete
+required assets stop the notebook before any pipeline stage. Smoke mode skips
+Qwen because smoke inference disables LLM calls, but still requires Devign and
+the semantic encoder. E03, E04, and E06 neither prepare nor download models.
+
 ## Selecting one seed and configuration
 
 Every execution runs exactly one `SEED` and one `CONFIGURATION`. E01 requires

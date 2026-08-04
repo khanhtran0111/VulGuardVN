@@ -1,5 +1,6 @@
 import random
 import os
+from pathlib import Path
 
 from common import RETRIEVAL_DIR, SPLITS_DIR, dump_json, ensure_dir, get_record_code, iter_jsonl
 from retrieval import (
@@ -18,7 +19,7 @@ MAX_FEATURES = int(os.getenv("GRACE_TFIDF_MAX_FEATURES", "50000"))
 SEED = int(os.getenv("GRACE_DEMO_SEED", "42"))
 SEMANTIC_BACKEND = os.getenv("GRACE_RETRIEVAL_BACKEND", "auto")
 SEMANTIC_MODEL_NAME = os.getenv("GRACE_RETRIEVAL_MODEL_ID", DEFAULT_RETRIEVAL_MODEL_REPO_ID)
-SEMANTIC_MODEL_DIR = default_retrieval_model_dir(SEMANTIC_MODEL_NAME)
+SEMANTIC_MODEL_DIR = Path(os.getenv("GRACE_RETRIEVAL_MODEL_DIR")) if os.getenv("GRACE_RETRIEVAL_MODEL_DIR") else default_retrieval_model_dir(SEMANTIC_MODEL_NAME)
 SEMANTIC_BATCH_SIZE = int(os.getenv("GRACE_RETRIEVAL_BATCH_SIZE", str(DEFAULT_EMBEDDING_BATCH_SIZE)))
 SEMANTIC_MAX_LENGTH = int(os.getenv("GRACE_RETRIEVAL_MAX_LENGTH", str(DEFAULT_EMBEDDING_MAX_LENGTH)))
 AUTO_DOWNLOAD_SEMANTIC_MODEL = os.getenv("GRACE_AUTO_DOWNLOAD_RETRIEVAL_MODEL", "").strip().lower() in {"1", "true", "yes", "on"}

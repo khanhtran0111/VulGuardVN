@@ -38,7 +38,7 @@ def _env_int(name: str, default: int | None) -> int | None:
 DATASET_NAME = os.getenv("GRACE_DATASET", "devign")
 PREFILTER_MODEL_NAME = os.getenv("GRACE_PREFILTER_MODEL_NAME", DEFAULT_PREFILTER_MODEL_NAME)
 LLM_MODEL_NAME = os.getenv("GRACE_LOCAL_MODEL_ID", DEFAULT_MODEL_REPO_ID)
-LOCAL_MODEL_DIR = default_local_model_dir(LLM_MODEL_NAME)
+LOCAL_MODEL_DIR = Path(os.getenv("GRACE_LOCAL_MODEL_DIR")) if os.getenv("GRACE_LOCAL_MODEL_DIR") else default_local_model_dir(LLM_MODEL_NAME)
 GRAPH_BACKEND = os.getenv("GRACE_GRAPH_BACKEND", "auto")
 MAX_TEST_SAMPLES = _env_int("GRACE_MAX_TEST_SAMPLES", None)
 TEST_CHUNK_SIZE = _env_int("GRACE_TEST_CHUNK_SIZE", None)
