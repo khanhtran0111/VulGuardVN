@@ -6,6 +6,8 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 REVISION_DIR = Path(__file__).resolve().parents[1]
@@ -18,7 +20,15 @@ from analyze_calibration_results import analyze as analyze_calibration  # noqa: 
 from analyze_routing_results import analyze as analyze_routing  # noqa: E402
 from analyze_runtime_results import analyze as analyze_runtime  # noqa: E402
 from experiment_config import ExperimentConfig, config_for_configuration  # noqa: E402
-from kaggle_artifacts import locate_or_materialize_run, package_run, validate_run  # noqa: E402
+from kaggle_artifacts import (  # noqa: E402
+    locate_or_materialize_run,
+    next_chunk_index,
+    package_checkpoint,
+    package_run,
+    restore_checkpoint,
+    validate_run,
+)
+import run_revision_experiments as revision_runner  # noqa: E402
 
 
 EXPECTED_NOTEBOOKS = (
@@ -47,7 +57,7 @@ def make_run(root: Path, configuration: str) -> Path:
     ]
     (run / "predictions.jsonl").write_text("".join(json.dumps(row) + "\n" for row in predictions), encoding="utf-8")
     write_json(run / "config.json", {"dataset_name": "devign", "experiment_name": "E01_multiseed", "configuration": configuration, "training_seed": 42, "call_llm_for_inspect": True, "call_llm_for_high": configuration == "reproduced_baseline", "delta_high": 0 if configuration == "reproduced_baseline" else 1, "force_inspect_all": configuration == "reproduced_baseline"})
-    write_json(run / "run_metadata.json", {"status": "complete", "commit_sha": "fixture", "dataset": "devign", "experiment": "E01_multiseed"})
+    write_json(run / "run_metadata.json", {"status": "complete", "commit_sha": "fixture", "dataset": "devign", "experiment": "E01_multiseed", "configuration": configuration, "training_seed": 42})
     write_json(run / "metrics.json", {"samples": 4, "accuracy": .5, "precision": .5, "recall": .5, "f1": .5, "roc_auc": .75, "pr_auc": .7, "llm_calls": 4 if configuration == "reproduced_baseline" else 1, "llm_call_ratio": 1.0 if configuration == "reproduced_baseline" else .25})
     write_json(run / "calibration.json", {
         "calibration_method": "platt", "calibrator": {"method": "platt", "parameters": {"coef": 1.0, "intercept": 0.0}},
@@ -69,6 +79,13 @@ def make_run(root: Path, configuration: str) -> Path:
         "llm_call_ratio": 1.0 if configuration == "reproduced_baseline" else .25,
         "peak_gpu_memory_mb": None,
     })
+    write_json(run / "_pipeline" / "run_state.json", {
+        "complete": True,
+        "resolved_samples": 4,
+        "target_samples": 4,
+        "run_signature": {"dataset": "devign", "configuration": configuration, "tau_low": .25, "tau_high": .8},
+    })
+    write_json(run / "_pipeline" / "stage_state.json", {"completed": ["inference", "evaluate"]})
     return run
 
 
@@ -126,6 +143,103 @@ class KaggleWorkflowTests(unittest.TestCase):
             located = locate_or_materialize_run(results_root=destination_results, experiment="E01_multiseed", dataset="devign", configuration="proposed", seed=42, input_path=archive, staging_root=base / "working" / "staging")
             validate_run(located, required=("config.json", "run_metadata.json", "metrics.json", "predictions.jsonl", "calibration.json", "runtime.json"), require_complete=True)
             self.assertEqual(before, archive.read_bytes())
+
+    def test_checkpoint_packages_pipeline_and_restores_exact_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = make_run(base / "source", "proposed")
+            checkpoint = package_checkpoint(
+                source,
+                base / "input",
+                dataset="devign",
+                experiment="E01_multiseed",
+                configuration="proposed",
+                seed=42,
+            )
+            with zipfile.ZipFile(checkpoint) as archive:
+                names = archive.namelist()
+                self.assertTrue(any(name.endswith("/_pipeline/run_state.json") for name in names))
+                self.assertIn("checkpoint_manifest.json", names)
+
+            restored = restore_checkpoint(
+                checkpoint,
+                base / "working" / "revision_results",
+                dataset="devign",
+                experiment="E01_multiseed",
+                configuration="proposed",
+                seed=42,
+                commit_sha="fixture",
+            )
+            self.assertTrue((restored / "_pipeline" / "run_state.json").is_file())
+            self.assertEqual(next_chunk_index(restored, 2), 2)
+            with self.assertRaisesRegex(RuntimeError, "commit_sha"):
+                restore_checkpoint(
+                    checkpoint,
+                    base / "other_results",
+                    dataset="devign",
+                    experiment="E01_multiseed",
+                    configuration="proposed",
+                    seed=42,
+                    commit_sha="different-commit",
+                )
+
+    def test_partial_inference_is_not_completed_and_skips_evaluation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = ExperimentConfig(
+                dataset_name="devign",
+                experiment_name="E01_multiseed",
+                configuration="proposed",
+                training_seed=42,
+                output_directory=str(Path(temporary) / "results"),
+            )
+            invoked: list[str] = []
+            chunk_environment: dict[str, str] = {}
+
+            def fake_stage(command, **kwargs):
+                invoked.append(Path(command[1]).name)
+                chunk_environment.update(kwargs["env"])
+                run = config.run_directory
+                write_json(run / "_pipeline" / "run_state.json", {
+                    "complete": False,
+                    "resolved_samples": 2,
+                    "target_samples": 5,
+                    "run_signature": {"dataset": "devign"},
+                })
+                (run / "predictions.jsonl").write_text(
+                    "".join(json.dumps({"record_id": value, "resolution_status": "resolved"}) + "\n" for value in ("a", "b")),
+                    encoding="utf-8",
+                )
+                return SimpleNamespace(returncode=0)
+
+            def fake_metadata(_config, status, **extra):
+                return {
+                    "dataset": "devign", "experiment": "E01_multiseed", "configuration": "proposed",
+                    "training_seed": 42, "commit_sha": "fixture", "status": status, **extra,
+                }
+
+            with patch.object(revision_runner.subprocess, "run", side_effect=fake_stage), \
+                 patch.object(revision_runner, "build_metadata", side_effect=fake_metadata), \
+                 patch.object(revision_runner, "_collect_runtime", return_value={}):
+                status = revision_runner.run_one(
+                    config,
+                    dry_run=False,
+                    resume=True,
+                    smoke=False,
+                    selected_stages={"inference", "evaluate"},
+                    test_chunk_size=2,
+                    test_chunk_index=0,
+                )
+
+            self.assertEqual(status, "partial")
+            self.assertEqual(invoked, ["07_run_grace_hybrid.py"])
+            self.assertEqual(chunk_environment["GRACE_TEST_CHUNK_SIZE"], "2")
+            self.assertEqual(chunk_environment["GRACE_TEST_CHUNK_INDEX"], "0")
+            stage_state = json.loads((config.run_directory / "_pipeline" / "stage_state.json").read_text())
+            self.assertNotIn("inference", stage_state["completed"])
+            self.assertEqual(stage_state["stage_status"]["inference"], "partial")
+            self.assertEqual(stage_state["next_test_chunk_index"], 1)
+            metadata = json.loads((config.run_directory / "run_metadata.json").read_text())
+            self.assertEqual(metadata["status"], "partial")
 
 
 if __name__ == "__main__":

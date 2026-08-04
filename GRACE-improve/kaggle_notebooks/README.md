@@ -63,9 +63,23 @@ The artifact helper only reads `/kaggle/input`; it extracts/copies files into
 Model notebooks default to `RESUME = True`. The runner saves stage state after
 every stage and inference flushes each prediction record. It tracks elapsed
 time and stops before a new stage when the configured session buffer is
-reached. An interrupted/incomplete run is marked `partial` and exported with a
-`_partial.zip` suffix. Upload that ZIP as a Dataset or restore its run directory
-in a later session, then rerun with the same seed/configuration and `RESUME`.
+reached. `TEST_CHUNK_SIZE` limits each session to one inference chunk;
+`TEST_CHUNK_INDEX = None` selects the next unresolved chunk automatically.
+
+An incomplete run produces two distinct exports:
+
+- The compact `_partial.zip` contains reportable artifacts but excludes
+  `_pipeline`.
+- The `_checkpoint.zip` contains the complete run directory, including
+  `_pipeline`, models, feature stores, predictions, and stage state.
+
+Upload `_checkpoint.zip` as a Kaggle Dataset. In the next model session, set
+`RESTORE_CHECKPOINT = True`, set `CHECKPOINT_INPUT` to that Dataset mount, and
+keep the same commit, dataset, seed, experiment, and configuration. The helper
+validates those fields and the packaged inference run signature before copying
+anything into `OUTPUT_ROOT`; the runner then resumes the automatically selected
+chunk. Evaluation is deferred until `_pipeline/run_state.json` reports
+`complete=true`.
 
 Never describe a `partial` run as a full result.
 
@@ -77,10 +91,9 @@ Portable ZIPs and `run_summary.json` are written to:
 /kaggle/working/exports/
 ```
 
-The ZIP excludes raw datasets, downloaded model caches, feature stores, and
-other large pipeline caches. For a mid-pipeline resume that needs those caches,
-save the Kaggle notebook output as a Dataset rather than relying only on the
-portable ZIP.
+The compact ZIP excludes raw datasets, downloaded model caches, feature stores,
+and other large pipeline caches. Use the separate checkpoint ZIP—not the compact
+ZIP—for multi-session resume.
 
 ## Recommended order and expected sessions
 
@@ -94,5 +107,6 @@ portable ZIP.
 | 5 | E05 verify-high; direct-high can reuse E01 | 1–3 |
 | 6 | E06 runtime analysis | 1 |
 
-Expected total: approximately 19–21 Kaggle sessions. Runtime varies with GPU,
+Expected total before inference chunking: approximately 19–21 Kaggle sessions.
+Model runs may require additional sessions according to `TEST_CHUNK_SIZE`, GPU,
 LLM cache state, graph backend, and whether E01 direct-high artifacts are reused.

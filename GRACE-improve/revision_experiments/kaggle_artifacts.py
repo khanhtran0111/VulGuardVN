@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +38,7 @@ PORTABLE_ARTIFACTS = (
     "f1_llm_call_curve.png",
     "runtime_breakdown.png",
 )
+CHECKPOINT_MANIFEST = "checkpoint_manifest.json"
 
 
 def read_json(path: str | Path) -> dict[str, Any]:
@@ -251,6 +253,200 @@ def package_run(
     return zip_path
 
 
+def _checkpoint_identity(run_dir: Path) -> dict[str, Any]:
+    config = read_json(run_dir / "config.json")
+    metadata = read_json(run_dir / "run_metadata.json")
+    run_state_path = run_dir / "_pipeline" / "run_state.json"
+    run_state = read_json(run_state_path) if run_state_path.is_file() else {}
+    identity = {
+        "dataset": config.get("dataset_name", metadata.get("dataset")),
+        "experiment": config.get("experiment_name", metadata.get("experiment")),
+        "configuration": config.get("configuration", metadata.get("configuration")),
+        "seed": config.get("training_seed", metadata.get("training_seed")),
+        "commit_sha": metadata.get("commit_sha"),
+        "run_signature": run_state.get("run_signature"),
+    }
+    missing = [key for key in ("dataset", "experiment", "configuration", "seed", "commit_sha") if identity[key] in (None, "")]
+    if missing:
+        raise RuntimeError(f"Cannot checkpoint {run_dir}; missing identity fields: {missing}")
+    identity["seed"] = int(identity["seed"])
+    return identity
+
+
+def package_checkpoint(
+    run_dir: str | Path,
+    exports_dir: str | Path,
+    *,
+    dataset: str,
+    experiment: str,
+    configuration: str,
+    seed: int,
+) -> Path:
+    """Package the complete run directory, including ``_pipeline``, for resume."""
+    source = Path(run_dir)
+    identity = _checkpoint_identity(source)
+    expected = {
+        "dataset": dataset,
+        "experiment": experiment,
+        "configuration": configuration,
+        "seed": int(seed),
+    }
+    for key, value in expected.items():
+        if identity[key] != value:
+            raise RuntimeError(f"Checkpoint identity mismatch for {key}: {identity[key]!r} != {value!r}")
+    manifest = {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **identity,
+    }
+    export_root = Path(exports_dir)
+    export_root.mkdir(parents=True, exist_ok=True)
+    zip_path = export_root / f"{dataset}_{experiment}_{configuration}_seed_{int(seed)}_checkpoint.zip"
+    relative_root = run_relative_path(experiment, dataset, configuration, seed)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(CHECKPOINT_MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
+        for path in source.rglob("*"):
+            if path.is_file():
+                archive.write(path, (relative_root / path.relative_to(source)).as_posix())
+    return zip_path
+
+
+def _checkpoint_archives(checkpoint_input: Path) -> list[Path]:
+    if checkpoint_input.is_file():
+        return [checkpoint_input] if checkpoint_input.suffix.lower() == ".zip" else []
+    if checkpoint_input.is_dir():
+        return sorted(checkpoint_input.rglob("*.zip"))
+    return []
+
+
+def _validate_checkpoint_identity(
+    actual: dict[str, Any],
+    *,
+    dataset: str,
+    experiment: str,
+    configuration: str,
+    seed: int,
+    commit_sha: str,
+    run_signature: dict[str, Any] | None,
+) -> None:
+    expected = {
+        "dataset": dataset,
+        "experiment": experiment,
+        "configuration": configuration,
+        "seed": int(seed),
+        "commit_sha": commit_sha,
+    }
+    for key, value in expected.items():
+        if actual.get(key) != value:
+            raise RuntimeError(f"Checkpoint identity mismatch for {key}: {actual.get(key)!r} != {value!r}")
+    if run_signature is not None and actual.get("run_signature") != run_signature:
+        raise RuntimeError("Checkpoint run signature does not match the requested run signature")
+
+
+def restore_checkpoint(
+    checkpoint_input: str | Path,
+    output_root: str | Path,
+    *,
+    dataset: str,
+    experiment: str,
+    configuration: str,
+    seed: int,
+    commit_sha: str,
+    run_signature: dict[str, Any] | None = None,
+) -> Path:
+    """Validate and restore a checkpoint into its exact run path under ``output_root``."""
+    source = Path(checkpoint_input)
+    archives = _checkpoint_archives(source)
+    if not archives:
+        raise FileNotFoundError(f"No checkpoint ZIP found under {source}")
+    relative = run_relative_path(experiment, dataset, configuration, seed)
+    matching: list[tuple[Path, dict[str, Any]]] = []
+    rejected: list[str] = []
+    for archive_path in archives:
+        try:
+            with zipfile.ZipFile(archive_path) as archive:
+                if CHECKPOINT_MANIFEST not in archive.namelist():
+                    continue
+                manifest = json.loads(archive.read(CHECKPOINT_MANIFEST).decode("utf-8"))
+            _validate_checkpoint_identity(
+                manifest,
+                dataset=dataset,
+                experiment=experiment,
+                configuration=configuration,
+                seed=seed,
+                commit_sha=commit_sha,
+                run_signature=run_signature,
+            )
+            matching.append((archive_path, manifest))
+        except RuntimeError as exc:
+            rejected.append(f"{archive_path}: {exc}")
+            continue
+        except Exception as exc:
+            raise RuntimeError(f"Invalid checkpoint archive {archive_path}: {exc}") from exc
+    if not matching:
+        details = f" Rejected: {'; '.join(rejected)}" if rejected else ""
+        raise RuntimeError(f"No checkpoint matching {relative} and commit {commit_sha} found under {source}.{details}")
+    if len(matching) > 1:
+        raise RuntimeError(f"Multiple matching checkpoints found: {[str(path) for path, _ in matching]}")
+
+    archive_path, manifest = matching[0]
+    output = Path(output_root)
+    output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="checkpoint_restore_", dir=output.parent) as temporary:
+        staging = Path(temporary)
+        _safe_extract(archive_path, staging)
+        staged_run = staging / relative
+        if not staged_run.is_dir():
+            raise RuntimeError(f"Checkpoint {archive_path} does not contain expected run path {relative}")
+        staged_identity = _checkpoint_identity(staged_run)
+        if staged_identity != {key: manifest.get(key) for key in staged_identity}:
+            raise RuntimeError("Checkpoint manifest does not match the packaged run identity")
+        _validate_checkpoint_identity(
+            staged_identity,
+            dataset=dataset,
+            experiment=experiment,
+            configuration=configuration,
+            seed=seed,
+            commit_sha=commit_sha,
+            run_signature=run_signature,
+        )
+        destination = output / relative
+        if destination.exists():
+            existing_identity = _checkpoint_identity(destination)
+            _validate_checkpoint_identity(
+                existing_identity,
+                dataset=dataset,
+                experiment=experiment,
+                configuration=configuration,
+                seed=seed,
+                commit_sha=commit_sha,
+                run_signature=run_signature,
+            )
+        _copy_tree_read_only_source(staged_run, destination)
+    return destination
+
+
+def next_chunk_index(run_dir: str | Path, chunk_size: int) -> int:
+    """Return the first not-fully-resolved test chunk for a restored run."""
+    if int(chunk_size) <= 0:
+        raise ValueError("chunk_size must be positive")
+    run = Path(run_dir)
+    predictions_path = run / "predictions.jsonl"
+    resolved_ids: set[str] = set()
+    if predictions_path.is_file():
+        with predictions_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(f"Invalid predictions JSONL at line {line_number}: {predictions_path}") from exc
+                if row.get("resolution_status", "resolved") == "resolved" and row.get("record_id") is not None:
+                    resolved_ids.add(str(row["record_id"]))
+    return len(resolved_ids) // int(chunk_size)
+
+
 def write_run_summary(
     path: str | Path,
     *,
@@ -281,6 +477,7 @@ def write_run_summary(
 
 
 __all__ = [
+    "CHECKPOINT_MANIFEST",
     "DEFAULT_REQUIRED",
     "PORTABLE_ARTIFACTS",
     "copy_run_artifacts",
@@ -289,9 +486,12 @@ __all__ = [
     "initialize_analysis_run",
     "locate_or_materialize_run",
     "materialize_input_artifacts",
+    "next_chunk_index",
+    "package_checkpoint",
     "package_run",
     "read_json",
     "run_relative_path",
+    "restore_checkpoint",
     "validate_run",
     "write_run_summary",
 ]

@@ -145,7 +145,12 @@ def build_metadata(config: ExperimentConfig, status: str, **extra: Any) -> dict[
 
 def is_complete(run_dir: Path) -> bool:
     metadata = _read_json(run_dir / "run_metadata.json", {})
-    return metadata.get("status") == "complete" and all((run_dir / name).exists() for name in REQUIRED_OUTPUTS)
+    inference_state = _read_json(run_dir / "_pipeline" / "run_state.json", {})
+    return (
+        metadata.get("status") == "complete"
+        and inference_state.get("complete") is True
+        and all((run_dir / name).exists() for name in REQUIRED_OUTPUTS)
+    )
 
 
 def _baseline_compare_path(config: ExperimentConfig) -> Path | None:
@@ -158,7 +163,14 @@ def _baseline_compare_path(config: ExperimentConfig) -> Path | None:
     return candidate if candidate.exists() else None
 
 
-def _stage_environment(config: ExperimentConfig, smoke: bool, resume: bool) -> dict[str, str]:
+def _stage_environment(
+    config: ExperimentConfig,
+    smoke: bool,
+    resume: bool,
+    *,
+    test_chunk_size: int | None = None,
+    test_chunk_index: int | None = None,
+) -> dict[str, str]:
     env = os.environ.copy()
     env.update(config.to_environment())
     env["PYTHONHASHSEED"] = str(config.training_seed)
@@ -166,6 +178,9 @@ def _stage_environment(config: ExperimentConfig, smoke: bool, resume: bool) -> d
     compare_path = _baseline_compare_path(config)
     if compare_path:
         env["GRACE_BASELINE_COMPARE_PATH"] = str(compare_path)
+    if test_chunk_size is not None:
+        env["GRACE_TEST_CHUNK_SIZE"] = str(test_chunk_size)
+        env["GRACE_TEST_CHUNK_INDEX"] = str(test_chunk_index)
     if smoke:
         env.update({
             "GRACE_PREPARE_LIMIT": "500",
@@ -177,6 +192,25 @@ def _stage_environment(config: ExperimentConfig, smoke: bool, resume: bool) -> d
             "GRACE_CALL_LLM_FOR_HIGH": "false",
         })
     return env
+
+
+def _next_test_chunk_index(run_dir: Path, chunk_size: int) -> int:
+    if chunk_size <= 0:
+        raise ValueError("--test-chunk-size must be positive")
+    predictions_path = run_dir / "predictions.jsonl"
+    resolved_ids: set[str] = set()
+    if predictions_path.is_file():
+        with predictions_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(f"Invalid predictions JSONL at line {line_number}: {predictions_path}") from exc
+                if row.get("resolution_status", "resolved") == "resolved" and row.get("record_id") is not None:
+                    resolved_ids.add(str(row["record_id"]))
+    return len(resolved_ids) // chunk_size
 
 
 def _validate_split_manifest(config: ExperimentConfig) -> str:
@@ -261,6 +295,8 @@ def run_one(
     session_budget_hours: float | None = None,
     min_remaining_minutes: float = 20.0,
     session_start_epoch: float | None = None,
+    test_chunk_size: int | None = None,
+    test_chunk_index: int | None = None,
 ) -> str:
     runner_started = time.perf_counter()
     def session_elapsed_seconds() -> float:
@@ -268,6 +304,16 @@ def run_one(
             return max(time.time() - session_start_epoch, 0.0)
         return time.perf_counter() - runner_started
     run_dir = config.run_directory
+    if test_chunk_index is not None and test_chunk_size is None:
+        raise ValueError("--test-chunk-index requires --test-chunk-size")
+    if test_chunk_size is not None:
+        if test_chunk_size <= 0:
+            raise ValueError("--test-chunk-size must be positive")
+        if test_chunk_index is None:
+            test_chunk_index = _next_test_chunk_index(run_dir, test_chunk_size)
+            print(f"[resume] automatically selected test chunk index {test_chunk_index}")
+        if test_chunk_index < 0:
+            raise ValueError("--test-chunk-index must be non-negative")
     if is_complete(run_dir):
         print(f"[skip] complete run: {run_dir}")
         return "skipped"
@@ -286,10 +332,33 @@ def run_one(
     _write_json(run_dir / "config.json", config.to_dict())
     stage_state_path = run_dir / "_pipeline" / "stage_state.json"
     stage_state = _read_json(stage_state_path, {"completed": [], "runtime_ms": {}})
-    env = _stage_environment(config, smoke, resume)
+    restored_inference_state = _read_json(run_dir / "_pipeline" / "run_state.json", {})
+    if restored_inference_state.get("complete") is not True and "inference" in stage_state.get("completed", []):
+        stage_state["completed"] = [
+            stage for stage in stage_state.get("completed", []) if stage not in {"inference", "evaluate"}
+        ]
+        stage_state.setdefault("stage_status", {})["inference"] = "partial"
+        _write_json(stage_state_path, stage_state)
+    env = _stage_environment(
+        config,
+        smoke,
+        resume,
+        test_chunk_size=test_chunk_size,
+        test_chunk_index=test_chunk_index,
+    )
 
     _write_json(run_dir / "run_metadata.json", build_metadata(config, "running"))
     for stage_index, (name, command) in enumerate(commands):
+        if name == "evaluate" and _read_json(run_dir / "_pipeline" / "run_state.json", {}).get("complete") is not True:
+            stage_state.setdefault("stage_status", {})["inference"] = "partial"
+            stage_state["partial_reason"] = "inference_incomplete_evaluation_deferred"
+            _write_json(stage_state_path, stage_state)
+            _write_json(
+                run_dir / "run_metadata.json",
+                build_metadata(config, "partial", partial_stage="inference", evaluation_deferred=True),
+            )
+            print("[partial] evaluation deferred because inference run_state.complete is not true")
+            return "partial"
         if resume and name in stage_state.get("completed", []):
             print(f"[resume] stage already complete: {name}")
             continue
@@ -330,6 +399,37 @@ def run_one(
             _write_json(stage_state_path, stage_state)
             _write_json(run_dir / "run_metadata.json", build_metadata(config, "failed", failed_stage=name, return_code=result.returncode))
             raise RuntimeError(f"Stage {name} failed with exit code {result.returncode}")
+        if name == "inference":
+            inference_state = _read_json(run_dir / "_pipeline" / "run_state.json", {})
+            if inference_state.get("complete") is not True:
+                completed_stages = stage_state.setdefault("completed", [])
+                stage_state["completed"] = [stage for stage in completed_stages if stage != "inference"]
+                stage_state.setdefault("stage_status", {})["inference"] = "partial"
+                stage_state["partial_reason"] = "inference_chunk_incomplete"
+                if test_chunk_size is not None:
+                    stage_state["next_test_chunk_index"] = _next_test_chunk_index(run_dir, test_chunk_size)
+                _write_json(stage_state_path, stage_state)
+                runtime = _collect_runtime(config, stage_state.get("runtime_ms", {}))
+                _write_json(run_dir / "runtime.json", runtime)
+                _write_json(
+                    run_dir / "run_metadata.json",
+                    build_metadata(
+                        config,
+                        "partial",
+                        partial_stage="inference",
+                        resolved_samples=inference_state.get("resolved_samples"),
+                        target_samples=inference_state.get("target_samples"),
+                        next_test_chunk_index=stage_state.get("next_test_chunk_index"),
+                    ),
+                )
+                print(
+                    "[partial] inference chunk completed but the full test set is unresolved; "
+                    "evaluation was not started"
+                )
+                return "partial"
+            stage_state.setdefault("stage_status", {})["inference"] = "complete"
+            stage_state.pop("next_test_chunk_index", None)
+            stage_state.pop("partial_reason", None)
         stage_state.setdefault("completed", []).append(name)
         if name == "splits":
             stage_state["test_split_fingerprint"] = _validate_split_manifest(config)
@@ -355,7 +455,11 @@ def run_one(
         baseline_total = float(baseline_runtime.get("total_runtime_ms") or 0.0)
         runtime["speedup_vs_non_selective_baseline"] = baseline_total / proposed_total if proposed_total > 0 else None
     _write_json(run_dir / "runtime.json", runtime)
-    complete = all((run_dir / name).exists() for name in REQUIRED_OUTPUTS if name != "run_metadata.json")
+    inference_state = _read_json(run_dir / "_pipeline" / "run_state.json", {})
+    complete = (
+        inference_state.get("complete") is True
+        and all((run_dir / name).exists() for name in REQUIRED_OUTPUTS if name != "run_metadata.json")
+    )
     status = "complete" if complete else "incomplete"
     missing = [name for name in REQUIRED_OUTPUTS if name != "run_metadata.json" and not (run_dir / name).exists()]
     _write_json(run_dir / "run_metadata.json", build_metadata(config, status, missing_outputs=missing))
@@ -382,6 +486,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--session-budget-hours", type=float, help="Stop before a new stage when the session budget is nearly exhausted.")
     parser.add_argument("--min-remaining-minutes", type=float, default=20.0)
     parser.add_argument("--session-start-epoch", type=float, help="UTC epoch captured near notebook start for whole-session accounting.")
+    parser.add_argument("--test-chunk-size", type=int, help="Resolve at most this many test records in the current inference chunk.")
+    parser.add_argument("--test-chunk-index", type=int, help="Zero-based chunk index; omitted means infer the next chunk from restored predictions.")
     return parser.parse_args()
 
 
@@ -417,6 +523,8 @@ def main() -> None:
                         session_budget_hours=args.session_budget_hours,
                         min_remaining_minutes=args.min_remaining_minutes,
                         session_start_epoch=args.session_start_epoch,
+                        test_chunk_size=args.test_chunk_size,
+                        test_chunk_index=args.test_chunk_index,
                     ))
     print(json.dumps({"runs": len(statuses), "statuses": statuses}, indent=2))
 
