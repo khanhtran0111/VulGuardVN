@@ -25,13 +25,9 @@ from kaggle_artifacts import (  # noqa: E402
     next_chunk_index,
     package_checkpoint,
     package_run,
+    prepare_required_artifacts,
     restore_checkpoint,
     validate_run,
-)
-from kaggle_preflight import (  # noqa: E402
-    prepare_devign_input,
-    prepare_qwen_model,
-    prepare_semantic_model,
 )
 import run_revision_experiments as revision_runner  # noqa: E402
 
@@ -102,22 +98,33 @@ class KaggleWorkflowTests(unittest.TestCase):
             sources = ["".join(cell.get("source", [])) for cell in notebook["cells"]]
             config_cells = [source for source in sources if 'REPOSITORY_URL = "https://github.com/khanhtran0111/VulGuardVN.git"' in source]
             self.assertEqual(len(config_cells), 1, name)
-            self.assertIn('RUN_MODE = "smoke"', config_cells[0])
+            expected_mode = 'RUN_MODE = "full"' if name.startswith("01_") else 'RUN_MODE = "smoke"'
+            self.assertIn(expected_mode, config_cells[0])
             self.assertIn('DATASET = "devign"', config_cells[0])
             self.assertIn("## A.", sources[0])
             self.assertEqual(sum("run_revision_experiments.py" in source for source in sources), 1 if name.startswith(("01_", "02_", "05_")) else 0)
             joined = "\n".join(sources)
+            dependency_source = next(source for source in sources if "DEPENDENCIES =" in source)
+            for dependency in ("gdown", "requests", "huggingface_hub", "transformers", "accelerate", "bitsandbytes", "sentencepiece"):
+                self.assertIn(dependency, dependency_source, (name, dependency))
             if name.startswith(("01_", "02_", "05_")):
-                self.assertIn("DEVIGN_INPUT", config_cells[0])
-                self.assertIn("SEMANTIC_MODEL_INPUT", config_cells[0])
-                self.assertIn("AUTO_DOWNLOAD_SEMANTIC_MODEL", config_cells[0])
-                self.assertIn("QWEN_MODEL_INPUT", config_cells[0])
-                self.assertIn("prepare_devign_input", joined)
-                self.assertIn("prepare_semantic_model", joined)
-                self.assertIn("prepare_qwen_model", joined)
+                self.assertIn("DEVIGN_SOURCE_PATH = None", config_cells[0])
+                self.assertIn("RETRIEVAL_MODEL_SOURCE_DIR = None", config_cells[0])
+                self.assertIn("LOCAL_LLM_SOURCE_DIR = None", config_cells[0])
+                self.assertIn("AUTO_DOWNLOAD_DATASET_IF_MISSING = True", config_cells[0])
+                self.assertIn("AUTO_DOWNLOAD_MISSING_MODELS = True", config_cells[0])
+                self.assertIn("## Download and prepare required assets", joined)
+                self.assertIn("prepare_required_assets", joined)
+                self.assertNotIn('/kaggle/input/devign', joined)
+                self.assertLess(
+                    next(index for index, source in enumerate(sources) if "## Download and prepare required assets" in source),
+                    next(index for index, source in enumerate(sources) if "## F. Repository smoke tests" in source),
+                )
             else:
-                self.assertNotIn("prepare_semantic_model", joined)
-                self.assertNotIn("prepare_qwen_model", joined)
+                self.assertIn("## Download and prepare required artifacts", joined)
+                self.assertIn("prepare_required_artifacts", joined)
+                self.assertNotIn("prepare_required_assets", joined)
+                self.assertNotIn("snapshot_download", joined)
 
     def test_force_inspect_all_is_explicit(self):
         base = ExperimentConfig(experiment_name="E01_multiseed")
@@ -160,6 +167,39 @@ class KaggleWorkflowTests(unittest.TestCase):
             located = locate_or_materialize_run(results_root=destination_results, experiment="E01_multiseed", dataset="devign", configuration="proposed", seed=42, input_path=archive, staging_root=base / "working" / "staging")
             validate_run(located, required=("config.json", "run_metadata.json", "metrics.json", "predictions.jsonl", "calibration.json", "runtime.json"), require_complete=True)
             self.assertEqual(before, archive.read_bytes())
+
+    def test_analysis_artifact_resolver_validates_only_required_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            proposed = make_run(base / "mounted", "proposed")
+            resolved = prepare_required_artifacts(
+                source=proposed,
+                download_url="",
+                auto_download=True,
+                working_root=base / "working",
+                kaggle_input_root=base / "no-input",
+                experiment="E01_multiseed",
+                dataset="devign",
+                configuration="proposed",
+                seed=42,
+                required=("predictions.jsonl",),
+                validation="branch",
+            )
+            self.assertEqual(resolved, proposed)
+            with self.assertRaisesRegex(FileNotFoundError, "Required files"):
+                prepare_required_artifacts(
+                    source=base / "missing",
+                    download_url="",
+                    auto_download=True,
+                    working_root=base / "empty-working",
+                    kaggle_input_root=base / "no-input",
+                    experiment="E01_multiseed",
+                    dataset="devign",
+                    configuration="proposed",
+                    seed=42,
+                    required=("predictions.jsonl",),
+                    validation="branch",
+                )
 
     def test_checkpoint_packages_pipeline_and_restores_exact_run(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -257,41 +297,6 @@ class KaggleWorkflowTests(unittest.TestCase):
             self.assertEqual(stage_state["next_test_chunk_index"], 1)
             metadata = json.loads((config.run_directory / "run_metadata.json").read_text())
             self.assertEqual(metadata["status"], "partial")
-
-    def test_kaggle_model_preflight_copies_devign_and_accepts_mounted_models(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            devign_input = root / "input" / "devign"
-            write_json(devign_input / "function.json", [{"func": "int f(){return 0;}", "target": 0}])
-            destination = prepare_devign_input(devign_input, root / "repo")
-            self.assertEqual(destination, root / "repo" / "GRACE-improve" / "data" / "function.json")
-            self.assertTrue(destination.is_file())
-
-            semantic = root / "input" / "semantic" / "snapshot"
-            write_json(semantic / "config.json", {})
-            (semantic / "tokenizer.json").write_text("{}", encoding="utf-8")
-            (semantic / "model.safetensors").write_bytes(b"fixture")
-            self.assertEqual(
-                prepare_semantic_model(semantic.parent, root / "repo", auto_download=False),
-                semantic,
-            )
-
-            qwen = root / "input" / "qwen"
-            write_json(qwen / "config.json", {})
-            (qwen / "model.safetensors").write_bytes(b"fixture")
-            self.assertEqual(
-                prepare_qwen_model(qwen, root / "repo", auto_download=False, required=True),
-                qwen,
-            )
-            self.assertIsNone(
-                prepare_qwen_model(root / "missing", root / "repo", auto_download=False, required=False)
-            )
-
-    def test_kaggle_preflight_fails_clearly_when_devign_is_missing(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            with self.assertRaisesRegex(FileNotFoundError, "Devign dataset was not found"):
-                prepare_devign_input(Path(temporary) / "missing", Path(temporary) / "repo")
-
 
 if __name__ == "__main__":
     unittest.main()

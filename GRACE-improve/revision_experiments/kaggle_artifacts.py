@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
+import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -169,6 +171,203 @@ def locate_or_materialize_run(
             return destination
     raise FileNotFoundError(
         f"Could not locate {relative} in {input_path}. Upload the exported E01/E05 ZIP as a Kaggle Dataset."
+    )
+
+
+def _analysis_run_candidates(root: Path, relative: Path, seed: int) -> list[Path]:
+    if not root.exists() or root.is_file():
+        return []
+    candidates: list[Path] = []
+    if root.name == f"seed_{int(seed)}":
+        candidates.append(root)
+    direct = root / relative
+    if direct.is_dir():
+        candidates.append(direct)
+    candidates.extend(path for path in root.rglob(f"seed_{int(seed)}") if path.is_dir())
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append(candidate)
+    return unique
+
+
+def _validate_analysis_artifacts(run_dir: Path, required: Iterable[str], validation: str) -> None:
+    required_names = tuple(required)
+    missing = [name for name in required_names if not (run_dir / name).is_file()]
+    if missing:
+        raise FileNotFoundError(f"{run_dir} is missing required artifacts: {missing}")
+    for name in required_names:
+        if name.endswith(".json"):
+            read_json(run_dir / name)
+    if validation == "branch":
+        required_fields = {
+            "record_id", "ground_truth", "prediction", "risk_band", "calibrated_probability",
+            "llm_called", "decision_source",
+        }
+        count = 0
+        with (run_dir / "predictions.jsonl").open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(f"Invalid predictions.jsonl line {line_number}: {run_dir}") from exc
+                missing_fields = required_fields - set(row)
+                if missing_fields:
+                    raise RuntimeError(f"Prediction line {line_number} is missing fields: {sorted(missing_fields)}")
+                count += 1
+        if count == 0:
+            raise RuntimeError(f"predictions.jsonl contains no records: {run_dir}")
+    elif validation == "calibration":
+        calibration = read_json(run_dir / "calibration.json")
+        records = calibration.get("probability_records")
+        if not isinstance(records, list) or not records:
+            raise RuntimeError(f"calibration.json is missing non-empty probability_records: {run_dir}")
+    elif validation == "runtime":
+        read_json(run_dir / "runtime.json")
+        read_json(run_dir / "run_metadata.json")
+        read_json(run_dir / "metrics.json")
+
+
+def _download_analysis_archive(
+    url: str,
+    destination: Path,
+    *,
+    timeout: int,
+    retries: int,
+    requests_get=None,
+    gdown_download=None,
+    sleep=time.sleep,
+) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    errors: list[str] = []
+    for attempt in range(1, max(int(retries), 3) + 1):
+        temporary = destination.with_suffix(destination.suffix + f".{attempt}.part")
+        temporary.unlink(missing_ok=True)
+        try:
+            print(f"[artifacts] Downloading analysis ZIP ({attempt}/{max(int(retries), 3)}): {url}")
+            if "drive.google.com" in url:
+                if gdown_download is None:
+                    import gdown
+
+                    gdown_download = gdown.download
+                result = gdown_download(url=url, output=str(temporary), quiet=False, fuzzy=True)
+                if not result or not temporary.is_file():
+                    raise RuntimeError("gdown did not create the requested archive")
+            else:
+                if requests_get is None:
+                    import requests
+
+                    requests_get = requests.get
+                response = requests_get(url, stream=True, timeout=timeout)
+                if hasattr(response, "raise_for_status"):
+                    response.raise_for_status()
+                with temporary.open("wb") as handle:
+                    if hasattr(response, "iter_content"):
+                        for chunk in response.iter_content(chunk_size=1024 * 1024):
+                            if chunk:
+                                handle.write(chunk)
+                    else:
+                        handle.write(response.content)
+            if not zipfile.is_zipfile(temporary):
+                raise RuntimeError("downloaded artifact is not a ZIP file")
+            os.replace(temporary, destination)
+            return destination
+        except Exception as exc:
+            errors.append(f"attempt {attempt}: {exc}")
+            temporary.unlink(missing_ok=True)
+            if attempt < max(int(retries), 3):
+                sleep(min(float(attempt), 3.0))
+    raise RuntimeError(f"Could not download analysis artifacts from {url}: {' | '.join(errors)}")
+
+
+def prepare_required_artifacts(
+    *,
+    source: str | Path | None,
+    download_url: str,
+    auto_download: bool,
+    working_root: str | Path,
+    experiment: str,
+    dataset: str,
+    configuration: str,
+    seed: int,
+    required: Iterable[str],
+    validation: str,
+    kaggle_input_root: str | Path = "/kaggle/input",
+    requests_get=None,
+    gdown_download=None,
+    sleep=time.sleep,
+) -> Path:
+    """Resolve analysis inputs without downloading datasets or model snapshots."""
+    working = Path(working_root)
+    inputs = working / "revision_inputs"
+    inputs.mkdir(parents=True, exist_ok=True)
+    relative = run_relative_path(experiment, dataset, configuration, seed)
+    search_items: list[Path] = []
+    if source not in (None, "") and Path(source).exists():
+        search_items.append(Path(source))
+    input_root = Path(kaggle_input_root)
+    if input_root.exists():
+        search_items.append(input_root)
+    search_items.append(working)
+    examined: list[str] = []
+
+    def inspect_root(root: Path) -> Path | None:
+        examined.append(str(root))
+        for candidate in _analysis_run_candidates(root, relative, seed):
+            normalized = f"/{candidate.as_posix()}"
+            expected_suffix = f"/{experiment}/{dataset}/{configuration}/seed_{int(seed)}"
+            if root.name != f"seed_{int(seed)}" and expected_suffix not in normalized:
+                continue
+            try:
+                _validate_analysis_artifacts(candidate, required, validation)
+                return candidate
+            except (FileNotFoundError, RuntimeError):
+                continue
+        return None
+
+    for item in list(search_items):
+        if item.is_dir():
+            found = inspect_root(item)
+            if found is not None:
+                print(f"[artifacts] Resolved analysis run: {found}")
+                return found
+        archives = [item] if item.is_file() and item.suffix.lower() == ".zip" else (
+            sorted(item.rglob("*.zip")) if item.is_dir() else []
+        )
+        for archive in archives:
+            extract_dir = inputs / archive.stem
+            _safe_extract(archive, extract_dir)
+            found = inspect_root(extract_dir)
+            if found is not None:
+                print(f"[artifacts] Extracted analysis run: {found}")
+                return found
+
+    if auto_download and str(download_url).strip():
+        archive = _download_analysis_archive(
+            download_url,
+            inputs / "downloads" / f"{experiment}_{configuration}_seed_{int(seed)}.zip",
+            timeout=120,
+            retries=3,
+            requests_get=requests_get,
+            gdown_download=gdown_download,
+            sleep=sleep,
+        )
+        extract_dir = inputs / archive.stem
+        _safe_extract(archive, extract_dir)
+        found = inspect_root(extract_dir)
+        if found is not None:
+            print(f"[artifacts] Downloaded analysis run: {found}")
+            return found
+
+    required_list = list(required)
+    raise FileNotFoundError(
+        f"Missing analysis artifacts for {relative}. Required files: {required_list}. "
+        f"Searched: {examined}. Set E01_RESULTS_SOURCE or E01_RESULTS_DOWNLOAD_URL."
     )
 
 
@@ -489,6 +688,7 @@ __all__ = [
     "next_chunk_index",
     "package_checkpoint",
     "package_run",
+    "prepare_required_artifacts",
     "read_json",
     "run_relative_path",
     "restore_checkpoint",

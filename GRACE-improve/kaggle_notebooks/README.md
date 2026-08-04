@@ -28,28 +28,60 @@ artifacts and do not retrain or invoke the LLM.
    loading.
 3. Import one notebook from this directory.
 4. Edit only its centralized **User configuration** cell.
-5. Start with `RUN_MODE = "dry-run"`, then use `"smoke"`, and finally `"full"`.
+5. Run All. E01 defaults to `RUN_MODE = "full"`; use `"dry-run"` or `"smoke"`
+   only for development checks.
 
 The dependency cell checks imports before installing anything. It does not
 upgrade existing TensorFlow, PyTorch, or CUDA packages.
 
-## Dataset and model inputs
+## Automatic download
 
-E01, E02, and E05 run a fail-fast preflight before starting the pipeline:
+E01, E02, and E05 can start without any manually attached Kaggle Dataset. Keep:
 
-- `DEVIGN_INPUT` points to a Kaggle Dataset containing `function.json`. The
-  file is validated and copied to `GRACE-improve/data/function.json`, which is
-  the exact path read by `baseline2/datasets.py`.
-- `SEMANTIC_MODEL_INPUT` may point to a mounted UniXcoder snapshot. Otherwise,
-  enable Internet and set `AUTO_DOWNLOAD_SEMANTIC_MODEL = True`.
-- `QWEN_MODEL_INPUT` may point to a mounted Qwen snapshot. For full runs, an
-  absent snapshot requires Internet and `AUTO_DOWNLOAD_MODEL = True`.
+```python
+DEVIGN_SOURCE_PATH = None
+RETRIEVAL_MODEL_SOURCE_DIR = None
+LOCAL_LLM_SOURCE_DIR = None
 
-Mounted model directories are passed through `GRACE_RETRIEVAL_MODEL_DIR` and
-`GRACE_LOCAL_MODEL_DIR`; Kaggle inputs remain read-only. Missing or incomplete
-required assets stop the notebook before any pipeline stage. Smoke mode skips
-Qwen because smoke inference disables LLM calls, but still requires Devign and
-the semantic encoder. E03, E04, and E06 neither prepare nor download models.
+AUTO_DOWNLOAD_DATASET_IF_MISSING = True
+AUTO_DOWNLOAD_MISSING_MODELS = True
+```
+
+Enable **Kaggle Internet** and a **GPU** for full experiments. The asset cell:
+
+1. downloads and validates Devign, then materializes it at
+   `GRACE-improve/data/function.json`;
+2. downloads `microsoft/unixcoder-base-nine`;
+3. downloads `unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit` for full runs;
+4. caches everything under `/kaggle/working/vulguard-assets` and sets the
+   runtime environment variables consumed by baseline2.
+
+Smoke mode skips Qwen because smoke inference disables LLM calls. Cached valid
+assets are reused and are not downloaded again during the session.
+
+## Mounted/offline input
+
+To avoid downloads, attach your own Kaggle Dataset and configure existing paths:
+
+```python
+DEVIGN_SOURCE_PATH = "/kaggle/input/my-devign/function.json"
+RETRIEVAL_MODEL_SOURCE_DIR = "/kaggle/input/my-models/unixcoder"
+LOCAL_LLM_SOURCE_DIR = "/kaggle/input/my-models/qwen"
+
+AUTO_DOWNLOAD_DATASET_IF_MISSING = False
+AUTO_DOWNLOAD_MISSING_MODELS = False
+```
+
+Mounted paths take priority and remain read-only. Depending on
+`COPY_MODELS_INSTEAD_OF_LINK`, model snapshots are copied into the working cache
+or used via the configured path. Invalid HTML/JSON downloads, incomplete model
+weights, missing tokenizer files, and missing shard indexes are rejected before
+the experiment starts.
+
+E03, E04, and E06 never download Devign, UniXcoder, or Qwen. Their
+`Download and prepare required artifacts` cell searches an optional
+`E01_RESULTS_SOURCE`, `/kaggle/input`, and `/kaggle/working`; it can download an
+E01 result ZIP from `E01_RESULTS_DOWNLOAD_URL` when configured.
 
 ## Selecting one seed and configuration
 
@@ -67,14 +99,14 @@ Do not remove `SPLIT_SEED = 42`, `DEMO_SEED = 31415`, or
 At the end of a model run, download the ZIP from `/kaggle/working/exports/`.
 To make it reusable:
 
-1. Create a Kaggle Dataset and upload one or more exported ZIP files.
-2. Attach that Dataset to the analysis notebook.
-3. Set `E01_RESULTS_INPUT` to its mounted path, for example
-   `/kaggle/input/vulguard-devign-e01-results`.
-4. Leave `REUSE_E01_RESULTS = True`.
+1. Optionally create a Kaggle Dataset and upload one or more exported ZIP files;
+   attached inputs are discovered automatically.
+2. Or set `E01_RESULTS_SOURCE` to a local/mounted ZIP or directory.
+3. Or set `E01_RESULTS_DOWNLOAD_URL` and leave
+   `AUTO_DOWNLOAD_RESULTS_IF_MISSING = True`.
 
-The artifact helper only reads `/kaggle/input`; it extracts/copies files into
-`/kaggle/working` before analysis.
+Analysis ZIPs are extracted under `/kaggle/working/revision_inputs`. The helper
+validates exactly the files and fields required by E03, E04, or E06.
 
 ## Resume and the 12-hour limit
 
@@ -90,6 +122,10 @@ An incomplete run produces two distinct exports:
   `_pipeline`.
 - The `_checkpoint.zip` contains the complete run directory, including
   `_pipeline`, models, feature stores, predictions, and stage state.
+
+The checkpoint does not include `/kaggle/working/vulguard-assets`; Devign and
+Hugging Face snapshots are independently resolved from cache, mounted overrides,
+or automatic downloads in each new session.
 
 Upload `_checkpoint.zip` as a Kaggle Dataset. In the next model session, set
 `RESTORE_CHECKPOINT = True`, set `CHECKPOINT_INPUT` to that Dataset mount, and
