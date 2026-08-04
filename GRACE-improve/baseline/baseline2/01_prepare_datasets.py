@@ -7,9 +7,10 @@ from datasets import discover_reveal_root, get_dataset_iterator
 
 
 TARGET_DATASETS = [name.strip() for name in os.getenv("GRACE_DATASETS", os.getenv("GRACE_DATASET", "devign")).split(",") if name.strip()]
+PREPARE_LIMIT = int(os.getenv("GRACE_PREPARE_LIMIT")) if os.getenv("GRACE_PREPARE_LIMIT") else None
 
 
-def prepare_dataset(dataset_name: str) -> None:
+def prepare_dataset(dataset_name: str, limit: int | None = PREPARE_LIMIT) -> None:
     if dataset_name == "reveal" and discover_reveal_root() is None:
         print("Skipping reveal because no raw files were found in data/reveal_raw or similar folders.")
         return
@@ -45,6 +46,8 @@ def prepare_dataset(dataset_name: str) -> None:
             stats["records"] += 1
             label_counter[int(record["label"])] += 1
             project_counter[record["project"] or "unknown"] += 1
+            if limit is not None and stats["records"] >= limit:
+                break
     payload = {
         "dataset": dataset_name,
         "records": int(stats["records"]),
@@ -54,6 +57,7 @@ def prepare_dataset(dataset_name: str) -> None:
         "top_projects": project_counter.most_common(10),
         "index_path": str(index_path),
         "materialization": "index_only",
+        "limit": limit,
     }
     dump_json(output_dir / "stats.json", payload)
     print(f"{dataset_name}: {payload['records']} rows indexed at {index_path}")

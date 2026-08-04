@@ -11,7 +11,7 @@ from graphs import get_graph_features
 from hybrid_prefilter import DEFAULT_PREFILTER_MODEL_NAME, predict_feature_store
 from local_llm_client import CACHE_SCHEMA_VERSION, DEFAULT_MODEL_REPO_ID, LocalVulnLLMClassifier, build_detection_prompt, default_local_model_dir
 from localizer import locate_suspicious_slices
-from metrics import apply_calibrator, apply_platt_scaler, bootstrap_f1_interval, compute_binary_metrics
+from metrics import apply_calibrator, apply_platt_scaler, bootstrap_f1_interval, compute_binary_metrics, validate_threshold_provenance
 from retrieval import DEMO_BANK_SCHEMA_VERSION, load_demo_bank, retrieve_examples
 
 
@@ -57,6 +57,12 @@ PREDICTION_FILE_STEM = os.getenv("GRACE_PREDICTION_FILE_STEM") or (f"grace_hybri
 RUN_STATE_FILE_STEM = os.getenv("GRACE_RUN_STATE_FILE_STEM") or (f"grace_hybrid_run_state_{VARIANT_SUFFIX}" if VARIANT_SUFFIX else "grace_hybrid_run_state")
 METRICS_FILE_STEM = os.getenv("GRACE_EVALUATION_FILE_STEM") or (f"grace_hybrid_evaluation_summary_{VARIANT_SUFFIX}" if VARIANT_SUFFIX else "grace_hybrid_evaluation_summary")
 EVIDENCE_AWARE_VERIFIER = _env_flag("GRACE_EVIDENCE_AWARE_VERIFIER", False)
+CALIBRATION_PATH_OVERRIDE = Path(os.getenv("GRACE_CALIBRATION_OUTPUT_PATH")) if os.getenv("GRACE_CALIBRATION_OUTPUT_PATH") else None
+DEMO_BANK_PATH_OVERRIDE = Path(os.getenv("GRACE_DEMO_BANK_PATH")) if os.getenv("GRACE_DEMO_BANK_PATH") else None
+PREDICTIONS_PATH_OVERRIDE = Path(os.getenv("GRACE_PREDICTIONS_PATH")) if os.getenv("GRACE_PREDICTIONS_PATH") else None
+RUN_STATE_PATH_OVERRIDE = Path(os.getenv("GRACE_RUN_STATE_PATH")) if os.getenv("GRACE_RUN_STATE_PATH") else None
+METRICS_PATH_OVERRIDE = Path(os.getenv("GRACE_EVALUATION_OUTPUT_PATH")) if os.getenv("GRACE_EVALUATION_OUTPUT_PATH") else None
+BOOTSTRAP_SEED = int(os.getenv("GRACE_BOOTSTRAP_SEED", "42"))
 
 
 def _risk_band(probability: float, tau_low: float, tau_high: float) -> str:
@@ -233,6 +239,16 @@ def _mean(values: list[float]) -> float:
     return float(sum(values) / max(len(values), 1))
 
 
+def _peak_gpu_memory_mb() -> float | None:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return float(torch.cuda.max_memory_allocated() / (1024.0 * 1024.0))
+    except Exception:
+        pass
+    return None
+
+
 def _summarize_predictions(
     predictions_path: Path,
     total_target_records: int,
@@ -241,6 +257,9 @@ def _summarize_predictions(
     *,
     run_signature: dict,
     chunk_context: dict | None = None,
+    prefilter_inference_ms: float = 0.0,
+    run_state_path: Path | None = None,
+    metrics_path: Path | None = None,
 ) -> dict:
     rows = _load_predictions(predictions_path)
     predictions_csv_path = predictions_path.with_suffix(".csv")
@@ -249,6 +268,8 @@ def _summarize_predictions(
     decision_sources = {"prefilter": 0, "llm": 0}
     llm_cache_hits = 0
     llm_calls = 0
+    api_requests_made = 0
+    graph_backend_counts: dict[str, int] = {}
     for row in rows:
         routing[row["risk_band"]] = routing.get(row["risk_band"], 0) + 1
         decision_sources[row["decision_source"]] = decision_sources.get(row["decision_source"], 0) + 1
@@ -256,6 +277,17 @@ def _summarize_predictions(
             llm_cache_hits += 1
         if row.get("llm_called"):
             llm_calls += 1
+        if row.get("api_request_made"):
+            api_requests_made += 1
+        if row.get("graph_backend_used"):
+            backend = str(row["graph_backend_used"])
+            graph_backend_counts[backend] = graph_backend_counts.get(backend, 0) + 1
+    if sum(routing.values()) != len(rows):
+        raise RuntimeError(
+            "Routing count invariant failed: "
+            f"skip_count({routing.get('skip', 0)}) + high_count({routing.get('high', 0)}) + "
+            f"inspect_count({routing.get('inspect', 0)}) != total_samples({len(rows)})"
+        )
     summary = {
         "dataset": DATASET_NAME,
         "schema_version": PREDICTION_SCHEMA_VERSION,
@@ -265,16 +297,19 @@ def _summarize_predictions(
         "complete": len(rows) == total_target_records,
         "evaluation_ready": len(rows) == total_target_records,
         "llm_calls": llm_calls,
+        "api_requests_made": api_requests_made,
         "llm_cache_hits": llm_cache_hits,
         "llm_call_ratio": float(llm_calls / max(len(rows), 1)),
         "routing": routing,
         "decision_sources": decision_sources,
         "retrieval_backend": bank.get("semantic_backend"),
         "graph_backend_requested": GRAPH_BACKEND,
+        "graph_backend_counts": graph_backend_counts,
         "predictions_path": str(predictions_path),
         "predictions_csv_path": str(predictions_csv_path),
         "chunking": chunk_context,
         "run_signature": run_signature,
+        "peak_gpu_memory_mb": _peak_gpu_memory_mb(),
         "config": {
             "prefilter_model_name": PREFILTER_MODEL_NAME,
             "llm_model_name": LLM_MODEL_NAME,
@@ -284,6 +319,7 @@ def _summarize_predictions(
             "load_in_4bit": LOAD_IN_4BIT,
             "call_llm_for_inspect": CALL_LLM_FOR_INSPECT,
             "call_llm_for_high": CALL_LLM_FOR_HIGH,
+            "delta_high": 0 if CALL_LLM_FOR_HIGH else 1,
         },
     }
     if rows:
@@ -303,17 +339,21 @@ def _summarize_predictions(
             "llm_mean": _mean(llm_times),
             "record_total": float(sum(total_times)),
             "record_mean": _mean(total_times),
+            "prefilter_inference_total": float(prefilter_inference_ms),
+            "prefilter_inference_mean": float(prefilter_inference_ms / max(len(rows), 1)),
+            "calibration_routing_total": float(sum(float(row.get("calibration_routing_latency_ms") or 0.0) for row in rows)),
+            "calibration_routing_mean": _mean([float(row.get("calibration_routing_latency_ms") or 0.0) for row in rows]),
         }
         summary.update(compute_binary_metrics(labels, predictions, probabilities))
-        summary["bootstrap_f1"] = bootstrap_f1_interval(labels, predictions, iterations=500)
-    dump_json(output_dir / f"{RUN_STATE_FILE_STEM}.json", summary)
-    dump_json(METRICS_DIR / DATASET_NAME / f"{METRICS_FILE_STEM}.json", summary)
+        summary["bootstrap_f1"] = bootstrap_f1_interval(labels, predictions, iterations=500, seed=BOOTSTRAP_SEED)
+    dump_json(run_state_path or (output_dir / f"{RUN_STATE_FILE_STEM}.json"), summary)
+    dump_json(metrics_path or (METRICS_DIR / DATASET_NAME / f"{METRICS_FILE_STEM}.json"), summary)
     return summary
 
 
 def main() -> None:
-    calibration_path = MODELS_DIR / DATASET_NAME / f"calibration.{PREFILTER_MODEL_NAME}.json"
-    bank_path = RETRIEVAL_DIR / DATASET_NAME / "demo_bank.joblib"
+    calibration_path = CALIBRATION_PATH_OVERRIDE or (MODELS_DIR / DATASET_NAME / f"calibration.{PREFILTER_MODEL_NAME}.json")
+    bank_path = DEMO_BANK_PATH_OVERRIDE or (RETRIEVAL_DIR / DATASET_NAME / "demo_bank.joblib")
     test_path = SPLITS_DIR / DATASET_NAME / "test.jsonl"
     if not calibration_path.exists():
         raise FileNotFoundError(f"Missing calibration file: {calibration_path}")
@@ -323,6 +363,7 @@ def main() -> None:
         raise FileNotFoundError(f"Missing test split: {test_path}")
 
     calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
+    validate_threshold_provenance(calibration, allow_legacy_missing=not bool(os.getenv("GRACE_EXPERIMENT_NAME")))
     tau_low = float(calibration["tau_low"])
     tau_high = float(calibration["tau_high"])
     bank = load_demo_bank(bank_path)
@@ -330,7 +371,9 @@ def main() -> None:
         raise RuntimeError("Demo bank schema mismatch. Rebuild `06_build_demo_bank.py`.")
     run_signature = _build_run_signature(calibration, bank)
 
+    prefilter_started = time.perf_counter()
     test_predictions = predict_feature_store(DATASET_NAME, "test", model_name=PREFILTER_MODEL_NAME)
+    prefilter_inference_ms = float(round((time.perf_counter() - prefilter_started) * 1000.0, 3))
     score_map = {
         record_id: {
             "fusion_score": float(fusion),
@@ -356,8 +399,8 @@ def main() -> None:
         )
         client.prepare()
 
-    output_dir = ensure_dir(PREDICTIONS_DIR / DATASET_NAME)
-    predictions_path = output_dir / f"{PREDICTION_FILE_STEM}.jsonl"
+    output_dir = ensure_dir((PREDICTIONS_PATH_OVERRIDE.parent if PREDICTIONS_PATH_OVERRIDE else PREDICTIONS_DIR / DATASET_NAME))
+    predictions_path = PREDICTIONS_PATH_OVERRIDE or (output_dir / f"{PREDICTION_FILE_STEM}.jsonl")
     existing_rows = _prepare_prediction_file(predictions_path)
     processed_ids = {row["record_id"] for row in existing_rows}
     target_record_ids, total_target_records, chunk_context = _select_target_record_ids(test_path, limit=MAX_TEST_SAMPLES)
@@ -382,11 +425,14 @@ def main() -> None:
             bank,
             run_signature=run_signature,
             chunk_context=chunk_context,
+            prefilter_inference_ms=prefilter_inference_ms,
+            run_state_path=RUN_STATE_PATH_OVERRIDE,
+            metrics_path=METRICS_PATH_OVERRIDE,
         )
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         return
 
-    run_state_path = output_dir / f"{RUN_STATE_FILE_STEM}.json"
+    run_state_path = RUN_STATE_PATH_OVERRIDE or (output_dir / f"{RUN_STATE_FILE_STEM}.json")
     if RESUME and predictions_path.exists() and run_state_path.exists():
         try:
             previous_run_state = json.loads(run_state_path.read_text(encoding="utf-8"))
@@ -434,10 +480,12 @@ def main() -> None:
 
             record_started = time.perf_counter()
             scores = score_map[record["record_id"]]
+            routing_started = time.perf_counter()
             calibrated_probability = _apply_saved_calibrator(scores["fusion_score"], calibration)
             band = _risk_band(calibrated_probability, tau_low, tau_high)
             call_llm = _should_call_llm(band)
             direct_prediction = _direct_prefilter_prediction(band)
+            calibration_routing_latency_ms = float(round((time.perf_counter() - routing_started) * 1000.0, 3))
 
             graph_latency_ms = 0.0
             retrieval_latency_ms = 0.0
@@ -458,6 +506,7 @@ def main() -> None:
                     "decision_source": "prefilter",
                     "risk_band": band,
                     "llm_called": False,
+                    "api_request_made": False,
                     "llm_cache_hit": False,
                     "prefilter_fusion_score": float(scores["fusion_score"]),
                     "prefilter_semantic_score": float(scores["semantic_score"]),
@@ -468,6 +517,7 @@ def main() -> None:
                     "graph_latency_ms": graph_latency_ms,
                     "retrieval_latency_ms": retrieval_latency_ms,
                     "llm_latency_ms": llm_latency_ms,
+                    "calibration_routing_latency_ms": calibration_routing_latency_ms,
                     "record_runtime_ms": float(round((time.perf_counter() - record_started) * 1000.0, 3)),
                     "reason": prefilter_reason,
                 }
@@ -520,6 +570,7 @@ def main() -> None:
                     "decision_source": "llm",
                     "risk_band": band,
                     "llm_called": True,
+                    "api_request_made": not bool(result.get("cached")),
                     "llm_cache_hit": bool(result.get("cached")),
                     "prefilter_fusion_score": float(scores["fusion_score"]),
                     "prefilter_semantic_score": float(scores["semantic_score"]),
@@ -530,6 +581,7 @@ def main() -> None:
                     "graph_latency_ms": graph_latency_ms,
                     "retrieval_latency_ms": retrieval_latency_ms,
                     "llm_latency_ms": llm_latency_ms,
+                    "calibration_routing_latency_ms": calibration_routing_latency_ms,
                     "record_runtime_ms": float(round((time.perf_counter() - record_started) * 1000.0, 3)),
                     "reason": verified_reason or result["reason"],
                     "llm_label": result["label"],
@@ -559,6 +611,9 @@ def main() -> None:
         bank,
         run_signature=run_signature,
         chunk_context=chunk_context,
+        prefilter_inference_ms=prefilter_inference_ms,
+        run_state_path=run_state_path,
+        metrics_path=METRICS_PATH_OVERRIDE,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

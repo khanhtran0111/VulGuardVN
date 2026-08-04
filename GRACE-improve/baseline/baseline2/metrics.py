@@ -1,16 +1,22 @@
 from typing import Any
 
 import numpy as np
-from sklearn.isotonic import IsotonicRegression
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    average_precision_score,
-    confusion_matrix,
-    f1_score,
-    precision_recall_fscore_support,
-    roc_auc_score,
-)
+try:
+    from sklearn.isotonic import IsotonicRegression
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (
+        accuracy_score,
+        average_precision_score,
+        confusion_matrix,
+        f1_score,
+        precision_recall_fscore_support,
+        roc_auc_score,
+    )
+except Exception:  # Minimal CPU smoke-test environments may omit scikit-learn.
+    IsotonicRegression = None
+    LogisticRegression = None
+    accuracy_score = average_precision_score = confusion_matrix = None
+    f1_score = precision_recall_fscore_support = roc_auc_score = None
 
 try:
     from scipy.stats import binomtest
@@ -77,6 +83,8 @@ def fit_platt_scaler(probabilities: list[float] | np.ndarray, labels: list[int] 
     x = _safe_logit(np.asarray(probabilities, dtype=float)).reshape(-1, 1)
     if len(np.unique(y)) < 2:
         return {"coef": 1.0, "intercept": 0.0}
+    if LogisticRegression is None:
+        raise RuntimeError("scikit-learn is required to fit Platt calibration")
     model = LogisticRegression(max_iter=2000, solver="lbfgs")
     model.fit(x, y)
     return {
@@ -120,6 +128,8 @@ def fit_beta_calibration(probabilities: list[float] | np.ndarray, labels: list[i
     if len(np.unique(y)) < 2:
         return {"coef_pos": 1.0, "coef_neg": 0.0, "intercept": 0.0}
     features = np.column_stack([np.log(probs), np.log1p(-probs)])
+    if LogisticRegression is None:
+        raise RuntimeError("scikit-learn is required to fit beta calibration")
     model = LogisticRegression(max_iter=4000, solver="lbfgs")
     model.fit(features, y)
     return {
@@ -145,6 +155,8 @@ def fit_isotonic_calibration(probabilities: list[float] | np.ndarray, labels: li
     y = np.asarray(labels, dtype=int)
     if len(np.unique(y)) < 2:
         return {"thresholds": [0.0, 1.0], "values": [0.0, 1.0]}
+    if IsotonicRegression is None:
+        raise RuntimeError("scikit-learn is required to fit isotonic calibration")
     model = IsotonicRegression(out_of_bounds="clip")
     model.fit(probs, y)
     return {
@@ -278,10 +290,21 @@ def choose_best_f1_threshold(
 def compute_binary_metrics(labels: list[int] | np.ndarray, predictions: list[int] | np.ndarray, probabilities: list[float] | np.ndarray | None = None) -> dict[str, Any]:
     y_true = np.asarray(labels, dtype=int)
     y_pred = np.asarray(predictions, dtype=int)
-    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="binary", zero_division=0)
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+    if precision_recall_fscore_support is not None:
+        precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="binary", zero_division=0)
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+        accuracy = float(accuracy_score(y_true, y_pred))
+    else:
+        tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+        tn = int(np.sum((y_true == 0) & (y_pred == 0)))
+        fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+        fn = int(np.sum((y_true == 1) & (y_pred == 0)))
+        precision = tp / max(tp + fp, 1)
+        recall = tp / max(tp + fn, 1)
+        f1 = 2 * precision * recall / max(precision + recall, 1e-12)
+        accuracy = (tp + tn) / max(len(y_true), 1)
     metrics = {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "accuracy": float(accuracy),
         "precision": float(precision),
         "recall": float(recall),
         "f1": float(f1),
@@ -293,17 +316,163 @@ def compute_binary_metrics(labels: list[int] | np.ndarray, predictions: list[int
     if probabilities is not None:
         probs = np.asarray(probabilities, dtype=float)
         try:
-            metrics["roc_auc"] = float(roc_auc_score(y_true, probs))
+            if roc_auc_score is not None:
+                metrics["roc_auc"] = float(roc_auc_score(y_true, probs))
+            else:
+                positives = probs[y_true == 1]
+                negatives = probs[y_true == 0]
+                comparisons = [(positive > negative) + 0.5 * (positive == negative) for positive in positives for negative in negatives]
+                metrics["roc_auc"] = float(np.mean(comparisons)) if comparisons else None
         except Exception:
             metrics["roc_auc"] = None
         try:
-            metrics["pr_auc"] = float(average_precision_score(y_true, probs))
+            if average_precision_score is not None:
+                metrics["pr_auc"] = float(average_precision_score(y_true, probs))
+            else:
+                order = np.argsort(-probs, kind="stable")
+                ranked = y_true[order]
+                cumulative = np.cumsum(ranked)
+                positive_positions = np.flatnonzero(ranked == 1)
+                metrics["pr_auc"] = float(np.mean(cumulative[positive_positions] / (positive_positions + 1))) if len(positive_positions) else None
         except Exception:
             metrics["pr_auc"] = None
         metrics["brier"] = brier_score(y_true, probs)
         metrics["nll"] = negative_log_likelihood(y_true, probs)
         metrics["ece"] = expected_calibration_error(y_true, probs)
     return metrics
+
+
+def compute_branch_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute mandatory skip/high/inspect metrics and enforce routing integrity."""
+    allowed = ("skip", "high", "inspect")
+    counts = {branch: sum(1 for row in rows if row.get("risk_band") == branch) for branch in allowed}
+    unknown = [row.get("risk_band") for row in rows if row.get("risk_band") not in allowed]
+    routed_total = sum(counts.values())
+    if unknown or routed_total != len(rows):
+        raise RuntimeError(
+            "Routing count invariant failed: "
+            f"skip_count({counts['skip']}) + high_count({counts['high']}) + "
+            f"inspect_count({counts['inspect']}) != total_samples({len(rows)}); "
+            f"unknown_bands={sorted({str(value) for value in unknown})}"
+        )
+
+    result: dict[str, Any] = {"total_samples": len(rows), "routing_invariant_valid": True, "branches": {}}
+    for branch in allowed:
+        branch_rows = [row for row in rows if row.get("risk_band") == branch]
+        labels = [int(row["ground_truth"]) for row in branch_rows]
+        predictions = [int(row["prediction"]) for row in branch_rows]
+        if branch_rows:
+            metrics = compute_binary_metrics(labels, predictions)
+        else:
+            metrics = {"accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "tp": 0, "tn": 0, "fp": 0, "fn": 0}
+        positives = int(sum(labels))
+        negatives = len(labels) - positives
+        result["branches"][branch] = {
+            "sample_count": len(branch_rows),
+            "positive_count": positives,
+            "negative_count": negatives,
+            "tp": int(metrics["tp"]),
+            "fp": int(metrics["fp"]),
+            "tn": int(metrics["tn"]),
+            "fn": int(metrics["fn"]),
+            "precision": float(metrics["precision"]),
+            "recall": float(metrics["recall"]),
+            "f1": float(metrics["f1"]),
+            "error_rate": float((metrics["fp"] + metrics["fn"]) / max(len(branch_rows), 1)),
+        }
+
+    skip = result["branches"]["skip"]
+    high = result["branches"]["high"]
+    result["skip_false_negatives"] = skip["fn"]
+    result["skip_false_negative_rate"] = float(skip["fn"] / max(skip["fn"] + skip["tp"], 1))
+    result["vulnerable_samples_skipped"] = skip["positive_count"]
+    result["high_false_positives"] = high["fp"]
+    result["high_precision"] = high["precision"]
+    result["inspect_metrics"] = dict(result["branches"]["inspect"])
+    return result
+
+
+def paired_metric_deltas(
+    baseline_rows: list[dict[str, Any]],
+    proposed_rows: list[dict[str, Any]],
+    *,
+    require_identical_records: bool = True,
+) -> dict[str, Any]:
+    """Align predictions by record_id and return proposed-minus-baseline deltas."""
+    def index(rows: list[dict[str, Any]], label: str) -> dict[str, dict[str, Any]]:
+        indexed: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            record_id = str(row["record_id"])
+            if record_id in indexed:
+                raise RuntimeError(f"Duplicate record_id in {label}: {record_id}")
+            indexed[record_id] = row
+        return indexed
+
+    baseline = index(baseline_rows, "baseline")
+    proposed = index(proposed_rows, "proposed")
+    if require_identical_records and set(baseline) != set(proposed):
+        raise RuntimeError(
+            "Baseline and proposed test record sets differ: "
+            f"baseline_only={len(set(baseline) - set(proposed))}, "
+            f"proposed_only={len(set(proposed) - set(baseline))}"
+        )
+    record_ids = sorted(set(baseline) & set(proposed))
+    baseline_aligned = [baseline[record_id] for record_id in record_ids]
+    proposed_aligned = [proposed[record_id] for record_id in record_ids]
+    labels = [int(row["ground_truth"]) for row in proposed_aligned]
+    baseline_labels = [int(row["ground_truth"]) for row in baseline_aligned]
+    if labels != baseline_labels:
+        raise RuntimeError("Ground-truth labels differ after record_id alignment")
+
+    def score(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        return compute_binary_metrics(
+            labels,
+            [int(row["prediction"]) for row in rows],
+            [float(row.get("calibrated_probability", row["prediction"])) for row in rows],
+        )
+
+    baseline_metrics = score(baseline_aligned)
+    proposed_metrics = score(proposed_aligned)
+    names = ("accuracy", "precision", "recall", "f1", "roc_auc", "pr_auc")
+    deltas = {
+        name: None
+        if baseline_metrics.get(name) is None or proposed_metrics.get(name) is None
+        else float(proposed_metrics[name] - baseline_metrics[name])
+        for name in names
+    }
+    baseline_calls = sum(bool(row.get("llm_called")) for row in baseline_aligned)
+    proposed_calls = sum(bool(row.get("llm_called")) for row in proposed_aligned)
+    return {
+        "aligned_samples": len(record_ids),
+        "record_ids_aligned": True,
+        "baseline_metrics": baseline_metrics,
+        "proposed_metrics": proposed_metrics,
+        "paired_deltas": deltas,
+        "baseline_llm_calls": baseline_calls,
+        "proposed_llm_calls": proposed_calls,
+        "llm_call_reduction": float((baseline_calls - proposed_calls) / max(baseline_calls, 1)),
+        "mcnemar": mcnemar_exact(
+            labels,
+            [int(row["prediction"]) for row in baseline_aligned],
+            [int(row["prediction"]) for row in proposed_aligned],
+        ),
+    }
+
+
+def validate_threshold_provenance(
+    calibration: dict[str, Any],
+    expected_split: str = "validation",
+    *,
+    allow_legacy_missing: bool = False,
+) -> None:
+    selected_on = str(calibration.get("threshold_selection_split", "")).strip().lower()
+    if not selected_on and allow_legacy_missing:
+        return
+    if selected_on != expected_split.lower():
+        raise RuntimeError(
+            f"Threshold provenance violation: selected_on={selected_on or 'missing'}, expected={expected_split}. "
+            "Thresholds must never be selected on the test set."
+        )
 
 
 def bootstrap_f1_interval(labels: list[int] | np.ndarray, predictions: list[int] | np.ndarray, iterations: int = 1000, seed: int = 42) -> dict[str, float]:

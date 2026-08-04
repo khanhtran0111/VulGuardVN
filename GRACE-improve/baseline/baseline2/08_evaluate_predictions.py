@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+from common import dump_json
 from evaluate_predictions import evaluate_prediction_artifacts, write_evaluation_summary
 
 
@@ -13,6 +14,10 @@ METRICS_FILE_STEM = os.getenv("GRACE_EVALUATION_FILE_STEM") or (f"grace_hybrid_e
 PREDICTIONS_PATH = Path(os.getenv("GRACE_PREDICTIONS_PATH", f"GRACE-improve/baseline/baseline2/artifacts/predictions/{DATASET_NAME}/{PREDICTION_FILE_STEM}.jsonl"))
 RUN_STATE_PATH = Path(os.getenv("GRACE_RUN_STATE_PATH", f"GRACE-improve/baseline/baseline2/artifacts/predictions/{DATASET_NAME}/{RUN_STATE_FILE_STEM}.json"))
 BASELINE_COMPARE_PATH = Path(os.getenv("GRACE_BASELINE_COMPARE_PATH")) if os.getenv("GRACE_BASELINE_COMPARE_PATH") else None
+EVALUATION_OUTPUT_PATH = Path(os.getenv("GRACE_EVALUATION_OUTPUT_PATH")) if os.getenv("GRACE_EVALUATION_OUTPUT_PATH") else None
+BRANCH_METRICS_OUTPUT_PATH = Path(os.getenv("GRACE_BRANCH_METRICS_OUTPUT_PATH", str(EVALUATION_OUTPUT_PATH.parent / "branch_metrics.json") if EVALUATION_OUTPUT_PATH else "")) if (os.getenv("GRACE_BRANCH_METRICS_OUTPUT_PATH") or EVALUATION_OUTPUT_PATH) else None
+BOOTSTRAP_SEED = int(os.getenv("GRACE_BOOTSTRAP_SEED", "42"))
+BOOTSTRAP_ITERATIONS = int(os.getenv("GRACE_BOOTSTRAP_ITERATIONS", "1000"))
 
 
 def main() -> None:
@@ -22,8 +27,17 @@ def main() -> None:
         dataset_name=DATASET_NAME,
         baseline_compare_path=BASELINE_COMPARE_PATH,
         expected_schema_version=1,
+        bootstrap_iterations=BOOTSTRAP_ITERATIONS,
+        bootstrap_seed=BOOTSTRAP_SEED,
     )
-    output_path = write_evaluation_summary(metrics, dataset_name=DATASET_NAME, filename=f"{METRICS_FILE_STEM}.json")
+    output_path = write_evaluation_summary(
+        metrics,
+        dataset_name=DATASET_NAME,
+        filename=f"{METRICS_FILE_STEM}.json",
+        output_path=EVALUATION_OUTPUT_PATH,
+    )
+    if BRANCH_METRICS_OUTPUT_PATH is not None:
+        dump_json(BRANCH_METRICS_OUTPUT_PATH, metrics["branch_metrics"])
     payload = {
         "output_path": str(output_path),
         "metrics": metrics,

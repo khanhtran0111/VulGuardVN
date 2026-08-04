@@ -47,6 +47,7 @@ def main() -> None:
             "semantic_dim": int(payload["semantic_embeddings"].shape[1]),
             "numeric_dim": int(payload["numeric_features"].shape[1]),
             "graph_backends": sorted(set(payload["graph_backends"])),
+            "timing_ms": payload.get("timing_ms", {}),
         }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

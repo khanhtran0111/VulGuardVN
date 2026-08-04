@@ -27,18 +27,18 @@ SHARED_PREDICTIONS_DIR = SHARED_ARTIFACTS_DIR / "predictions"
 SHARED_RETRIEVAL_DIR = SHARED_ARTIFACTS_DIR / "retrieval"
 
 # Baseline2 writes its own derived artifacts here to avoid clobbering baseline1.
-ARTIFACTS_DIR = BASELINE_DIR / "artifacts"
-FEATURES_DIR = ARTIFACTS_DIR / "features"
-MODELS_DIR = ARTIFACTS_DIR / "models"
-RETRIEVAL_DIR = ARTIFACTS_DIR / "retrieval"
-PREDICTIONS_DIR = ARTIFACTS_DIR / "predictions"
-METRICS_DIR = ARTIFACTS_DIR / "metrics"
-CACHE_DIR = ARTIFACTS_DIR / "cache"
+ARTIFACTS_DIR = Path(os.getenv("GRACE_ARTIFACTS_DIR", BASELINE_DIR / "artifacts"))
+FEATURES_DIR = Path(os.getenv("GRACE_FEATURES_DIR", ARTIFACTS_DIR / "features"))
+MODELS_DIR = Path(os.getenv("GRACE_MODELS_DIR", ARTIFACTS_DIR / "models"))
+RETRIEVAL_DIR = Path(os.getenv("GRACE_RETRIEVAL_DIR", ARTIFACTS_DIR / "retrieval"))
+PREDICTIONS_DIR = Path(os.getenv("GRACE_PREDICTIONS_DIR", ARTIFACTS_DIR / "predictions"))
+METRICS_DIR = Path(os.getenv("GRACE_METRICS_DIR", ARTIFACTS_DIR / "metrics"))
+CACHE_DIR = Path(os.getenv("GRACE_CACHE_DIR", ARTIFACTS_DIR / "cache"))
 
 # Keep aliases for code that expects dataset and graph assets.
-PROCESSED_DIR = SHARED_PROCESSED_DIR
-SPLITS_DIR = SHARED_SPLITS_DIR
-GRAPH_DIR = SHARED_GRAPH_DIR
+PROCESSED_DIR = Path(os.getenv("GRACE_PROCESSED_DIR", SHARED_PROCESSED_DIR))
+SPLITS_DIR = Path(os.getenv("GRACE_SPLITS_DIR", SHARED_SPLITS_DIR))
+GRAPH_DIR = Path(os.getenv("GRACE_GRAPH_DIR", SHARED_GRAPH_DIR))
 ENV_PATH = ROOT_DIR / ".env"
 
 load_dotenv(ENV_PATH)

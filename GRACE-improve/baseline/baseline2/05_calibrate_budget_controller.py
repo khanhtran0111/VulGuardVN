@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -33,6 +34,10 @@ TAU_NEG_STEPS = int(os.getenv("GRACE_TAU_NEG_STEPS", "15"))
 TAU_POS_MIN = float(os.getenv("GRACE_TAU_POS_MIN", "0.45"))
 TAU_POS_MAX = float(os.getenv("GRACE_TAU_POS_MAX", "0.90"))
 TAU_POS_STEPS = int(os.getenv("GRACE_TAU_POS_STEPS", "19"))
+TAU_LOW_OVERRIDE = float(os.getenv("GRACE_TAU_LOW")) if os.getenv("GRACE_TAU_LOW") else None
+TAU_HIGH_OVERRIDE = float(os.getenv("GRACE_TAU_HIGH")) if os.getenv("GRACE_TAU_HIGH") else None
+CALIBRATION_OUTPUT_PATH = Path(os.getenv("GRACE_CALIBRATION_OUTPUT_PATH")) if os.getenv("GRACE_CALIBRATION_OUTPUT_PATH") else None
+FIGURES_DIR = Path(os.getenv("GRACE_FIGURES_DIR")) if os.getenv("GRACE_FIGURES_DIR") else None
 
 
 def _candidate_grid(low: float, high: float, steps: int) -> np.ndarray:
@@ -140,16 +145,74 @@ def _choose_routing_thresholds(probabilities: np.ndarray, labels: np.ndarray) ->
     return fallback_low, float(fallback_high), "fallback_f1", fallback_metrics
 
 
+def _save_calibration_figures(
+    raw_scores: np.ndarray,
+    probabilities: np.ndarray,
+    labels: np.ndarray,
+    tau_low: float,
+    tau_high: float,
+    figures_dir: Path,
+) -> list[str]:
+    try:
+        import matplotlib.pyplot as plt
+        from sklearn.calibration import calibration_curve
+        from sklearn.metrics import precision_recall_curve, roc_curve
+    except Exception as exc:
+        print(f"[calibration] figure generation skipped: {exc}")
+        return []
+
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[str] = []
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    ax.hist(probabilities[labels == 0], bins=30, alpha=0.65, label="non-vulnerable")
+    ax.hist(probabilities[labels == 1], bins=30, alpha=0.65, label="vulnerable")
+    ax.axvline(tau_low, color="tab:blue", linestyle="--", label="tau_low")
+    ax.axvline(tau_high, color="tab:red", linestyle="--", label="tau_high")
+    ax.set(xlabel="Calibrated probability", ylabel="Count", title=f"{DATASET_NAME}: probability distribution")
+    ax.legend()
+    path = figures_dir / "probability_histogram.png"
+    fig.tight_layout(); fig.savefig(path, dpi=180); plt.close(fig); paths.append(str(path))
+
+    fraction_positive, mean_predicted = calibration_curve(labels, probabilities, n_bins=10, strategy="uniform")
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.plot([0, 1], [0, 1], "k--", label="perfect calibration")
+    ax.plot(mean_predicted, fraction_positive, marker="o", label="model")
+    ax.set(xlabel="Mean predicted probability", ylabel="Observed positive rate", title=f"{DATASET_NAME}: reliability")
+    ax.legend()
+    path = figures_dir / "reliability_diagram.png"
+    fig.tight_layout(); fig.savefig(path, dpi=180); plt.close(fig); paths.append(str(path))
+
+    fpr, tpr, _ = roc_curve(labels, probabilities)
+    fig, ax = plt.subplots(figsize=(5, 5)); ax.plot(fpr, tpr); ax.plot([0, 1], [0, 1], "k--")
+    ax.set(xlabel="False-positive rate", ylabel="True-positive rate", title=f"{DATASET_NAME}: ROC")
+    path = figures_dir / "roc_curve.png"
+    fig.tight_layout(); fig.savefig(path, dpi=180); plt.close(fig); paths.append(str(path))
+
+    precision, recall, _ = precision_recall_curve(labels, probabilities)
+    fig, ax = plt.subplots(figsize=(5, 5)); ax.plot(recall, precision)
+    ax.set(xlabel="Recall", ylabel="Precision", title=f"{DATASET_NAME}: precision-recall")
+    path = figures_dir / "pr_curve.png"
+    fig.tight_layout(); fig.savefig(path, dpi=180); plt.close(fig); paths.append(str(path))
+    return paths
+
+
 def main() -> None:
     predictions = predict_feature_store(DATASET_NAME, "val", model_name=MODEL_NAME)
     labels = np.asarray(predictions["labels"], dtype=np.int32)
+    record_ids = [str(value) for value in predictions["record_ids"]]
     fusion_scores = np.asarray(predictions["fusion_score"], dtype=np.float32)
-    semantic_scores = np.asarray(predictions["semantic_score"], dtype=np.float32)
-    graph_scores = np.asarray(predictions["graph_score"], dtype=np.float32)
+    semantic_scores = np.asarray(predictions.get("semantic_score", np.full(len(labels), np.nan)), dtype=np.float32)
+    graph_scores = np.asarray(predictions.get("graph_score", np.full(len(labels), np.nan)), dtype=np.float32)
 
     calibration = _calibration_payload(fusion_scores, labels)
     calibrated = np.asarray(calibration["calibrated"], dtype=np.float32)
-    if ROUTING_MODE == "constrained":
+    if TAU_LOW_OVERRIDE is not None or TAU_HIGH_OVERRIDE is not None:
+        if TAU_LOW_OVERRIDE is None or TAU_HIGH_OVERRIDE is None or TAU_LOW_OVERRIDE >= TAU_HIGH_OVERRIDE:
+            raise ValueError("GRACE_TAU_LOW and GRACE_TAU_HIGH must both be set with tau_low < tau_high")
+        tau_low, tau_high, tau_strategy = TAU_LOW_OVERRIDE, TAU_HIGH_OVERRIDE, "configured_validation_operating_point"
+        routing_metrics = _routing_stats(calibrated, labels, tau_low, tau_high)
+    elif ROUTING_MODE == "constrained":
         tau_low, tau_high, tau_strategy, routing_metrics = _choose_routing_thresholds(calibrated, labels)
     else:
         tau_low = choose_low_threshold(calibrated, labels, TARGET_RECALL)
@@ -193,6 +256,8 @@ def main() -> None:
         "tau_low": float(tau_low),
         "tau_high": float(tau_high),
         "tau_high_strategy": tau_strategy,
+        "threshold_selection_strategy": tau_strategy,
+        "threshold_selection_split": "validation",
         "tau_high_best_f1": routing_metrics.get("tau_high_best_f1"),
         "calibrator": calibration["calibrator"],
         "calibration_metrics": calibration["calibration_metrics"],
@@ -203,8 +268,8 @@ def main() -> None:
         "val_metrics_routing_proxy": compute_binary_metrics(labels, routing_proxy_predictions, calibrated),
         "branch_means": {
             "fusion_score_mean": float(np.mean(fusion_scores)),
-            "semantic_score_mean": float(np.mean(semantic_scores)),
-            "graph_score_mean": float(np.mean(graph_scores)),
+            "semantic_score_mean": None if np.all(np.isnan(semantic_scores)) else float(np.nanmean(semantic_scores)),
+            "graph_score_mean": None if np.all(np.isnan(graph_scores)) else float(np.nanmean(graph_scores)),
         },
         "llm_budget_estimate": {
             "keep_ratio": float(np.mean(calibrated > tau_low)),
@@ -212,8 +277,20 @@ def main() -> None:
             "inspect_ratio": float(np.mean((calibrated > tau_low) & (calibrated < tau_high))),
         },
         "routing_metrics": routing_metrics,
+        "probability_records": [
+            {
+                "record_id": record_id,
+                "ground_truth": int(label),
+                "raw_fusion_score": float(raw),
+                "calibrated_probability": float(probability),
+                "calibration_method": calibration["calibrator"]["method"],
+            }
+            for record_id, label, raw, probability in zip(record_ids, labels, fusion_scores, calibrated)
+        ],
     }
-    output_path = MODELS_DIR / DATASET_NAME / f"calibration.{MODEL_NAME}.json"
+    output_path = CALIBRATION_OUTPUT_PATH or (MODELS_DIR / DATASET_NAME / f"calibration.{MODEL_NAME}.json")
+    figures_dir = FIGURES_DIR or (output_path.parent / "figures")
+    summary["figures"] = _save_calibration_figures(fusion_scores, calibrated, labels, tau_low, tau_high, figures_dir)
     dump_json(output_path, summary)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
