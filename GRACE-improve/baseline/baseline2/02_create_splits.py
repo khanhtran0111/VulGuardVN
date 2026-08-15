@@ -1,5 +1,7 @@
+import argparse
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -14,16 +16,16 @@ from datasets import (
 
 
 TARGET_DATASETS = [name.strip() for name in os.getenv("GRACE_DATASETS", os.getenv("GRACE_DATASET", "devign")).split(",") if name.strip()]
-OUTER_SPLITS = 10
-INNER_SPLITS = 9
-SEED = 42
+OUTER_SPLITS = int(os.getenv("GRACE_OUTER_SPLITS", "10"))
+INNER_SPLITS = int(os.getenv("GRACE_INNER_SPLITS", "9"))
+SPLIT_SEED = int(os.getenv("GRACE_SPLIT_SEED", "42"))
 
 
-def _assign_splits(frame: pd.DataFrame) -> pd.DataFrame:
+def _assign_splits(frame: pd.DataFrame, split_seed: int = SPLIT_SEED) -> pd.DataFrame:
     x = np.zeros(len(frame))
     y = frame["label"].to_numpy()
     groups = frame["code_hash"].to_numpy()
-    outer = StratifiedGroupKFold(n_splits=OUTER_SPLITS, shuffle=True, random_state=SEED)
+    outer = StratifiedGroupKFold(n_splits=OUTER_SPLITS, shuffle=True, random_state=split_seed)
     train_val_idx, test_idx = next(outer.split(x, y, groups))
     assignments = np.array([""] * len(frame), dtype=object)
     assignments[test_idx] = "test"
@@ -31,7 +33,7 @@ def _assign_splits(frame: pd.DataFrame) -> pd.DataFrame:
     inner_x = np.zeros(len(inner_frame))
     inner_y = inner_frame["label"].to_numpy()
     inner_groups = inner_frame["code_hash"].to_numpy()
-    inner = StratifiedGroupKFold(n_splits=INNER_SPLITS, shuffle=True, random_state=SEED + 1)
+    inner = StratifiedGroupKFold(n_splits=INNER_SPLITS, shuffle=True, random_state=split_seed + 1)
     train_idx, val_idx = next(inner.split(inner_x, inner_y, inner_groups))
     assignments[train_val_idx[train_idx]] = "train"
     assignments[train_val_idx[val_idx]] = "val"
@@ -44,6 +46,7 @@ def _write_records_from_assignment(dataset_name: str, assigned: pd.DataFrame, ou
     split_index_path = output_dir / "split_index.csv"
     assigned.to_csv(split_index_path, index=False)
     record_to_split = dict(zip(assigned["record_id"], assigned["split"]))
+    remaining_record_ids = set(record_to_split)
     handles = {
         "train": (output_dir / "train.jsonl").open("w", encoding="utf-8"),
         "val": (output_dir / "val.jsonl").open("w", encoding="utf-8"),
@@ -55,6 +58,9 @@ def _write_records_from_assignment(dataset_name: str, assigned: pd.DataFrame, ou
             split = record_to_split.get(record["record_id"])
             if split in handles:
                 handles[split].write(json.dumps(record, ensure_ascii=False) + "\n")
+                remaining_record_ids.discard(record["record_id"])
+                if not remaining_record_ids:
+                    break
     finally:
         for handle in handles.values():
             handle.close()
@@ -75,7 +81,7 @@ def _summarize_assigned(dataset_name: str, assigned: pd.DataFrame, split_index_p
     return summary
 
 
-def _create_random_group_splits(dataset_name: str) -> None:
+def _create_random_group_splits(dataset_name: str, *, split_seed: int = SPLIT_SEED, splits_dir: Path = SPLITS_DIR) -> None:
     index_path = PROCESSED_DIR / dataset_name / "index.csv"
     if not index_path.exists():
         print(f"Skipping {dataset_name}: run 01_prepare_datasets.py first.")
@@ -85,17 +91,19 @@ def _create_random_group_splits(dataset_name: str) -> None:
         print(f"Skipping {dataset_name}: empty index.")
         return
     frame["label"] = frame["label"].astype(int)
-    assigned = _assign_splits(frame)
-    output_dir = ensure_dir(SPLITS_DIR / dataset_name)
+    assigned = _assign_splits(frame, split_seed=split_seed)
+    output_dir = ensure_dir(splits_dir / dataset_name)
     _write_records_from_assignment(dataset_name, assigned, output_dir)
     split_index_path = output_dir / "split_index.csv"
     summary = _summarize_assigned(dataset_name, assigned, split_index_path)
+    summary["strategy"] = "stratified_group_kfold"
+    summary["split_seed"] = int(split_seed)
     dump_json(output_dir / "split_summary.json", summary)
     print(f"{dataset_name}: split files written to {output_dir}")
 
 
-def _create_reveal_official_splits() -> None:
-    output_dir = ensure_dir(SPLITS_DIR / "reveal")
+def _create_reveal_official_splits(*, splits_dir: Path = SPLITS_DIR) -> None:
+    output_dir = ensure_dir(splits_dir / "reveal")
     split_rows = []
     stats = {}
     for split_name in ["train", "val", "test"]:
@@ -132,6 +140,7 @@ def _create_reveal_official_splits() -> None:
         {
             "dataset": "reveal",
             "strategy": "official",
+            "split_seed": None,
             "split_index_path": str(split_index_path),
             **stats,
         },
@@ -139,7 +148,7 @@ def _create_reveal_official_splits() -> None:
     print(f"reveal: official split files written to {output_dir}")
 
 
-def _create_hint_based_splits(dataset_name: str) -> bool:
+def _create_hint_based_splits(dataset_name: str, *, splits_dir: Path = SPLITS_DIR) -> bool:
     index_path = PROCESSED_DIR / dataset_name / "index.csv"
     if not index_path.exists():
         return False
@@ -150,7 +159,7 @@ def _create_hint_based_splits(dataset_name: str) -> bool:
     valid = frame["split"].isin(["train", "val", "test"]).all()
     if not valid:
         return False
-    output_dir = ensure_dir(SPLITS_DIR / dataset_name)
+    output_dir = ensure_dir(splits_dir / dataset_name)
     _write_records_from_assignment(dataset_name, frame, output_dir)
     split_index_path = output_dir / "split_index.csv"
     summary = _summarize_assigned(dataset_name, frame, split_index_path)
@@ -160,18 +169,23 @@ def _create_hint_based_splits(dataset_name: str) -> bool:
     return True
 
 
-def create_dataset_splits(dataset_name: str) -> None:
+def create_dataset_splits(dataset_name: str, *, split_seed: int = SPLIT_SEED, splits_dir: Path = SPLITS_DIR) -> None:
     if dataset_name == "reveal" and has_reveal_official_splits():
-        _create_reveal_official_splits()
+        _create_reveal_official_splits(splits_dir=splits_dir)
         return
-    if dataset_name == "reveal" and _create_hint_based_splits(dataset_name):
+    if dataset_name == "reveal" and _create_hint_based_splits(dataset_name, splits_dir=splits_dir):
         return
-    _create_random_group_splits(dataset_name)
+    _create_random_group_splits(dataset_name, split_seed=split_seed, splits_dir=splits_dir)
 
 
 def main() -> None:
-    for dataset_name in TARGET_DATASETS:
-        create_dataset_splits(dataset_name)
+    parser = argparse.ArgumentParser(description="Create leakage-safe GRACE dataset splits.")
+    parser.add_argument("--dataset", action="append", dest="datasets")
+    parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
+    parser.add_argument("--output-dir", type=Path, default=SPLITS_DIR)
+    args = parser.parse_args()
+    for dataset_name in args.datasets or TARGET_DATASETS:
+        create_dataset_splits(dataset_name, split_seed=args.split_seed, splits_dir=args.output_dir)
 
 
 if __name__ == "__main__":

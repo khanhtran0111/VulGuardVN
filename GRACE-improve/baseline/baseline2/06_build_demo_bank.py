@@ -1,5 +1,6 @@
 import random
 import os
+from pathlib import Path
 
 from common import RETRIEVAL_DIR, SPLITS_DIR, dump_json, ensure_dir, get_record_code, iter_jsonl
 from retrieval import (
@@ -15,10 +16,10 @@ from retrieval import (
 DATASET_NAME = os.getenv("GRACE_DATASET", "devign")
 MAX_EXAMPLES_PER_LABEL = int(os.getenv("GRACE_MAX_EXAMPLES_PER_LABEL", "4000"))
 MAX_FEATURES = int(os.getenv("GRACE_TFIDF_MAX_FEATURES", "50000"))
-SEED = 42
+SEED = int(os.getenv("GRACE_DEMO_SEED", "42"))
 SEMANTIC_BACKEND = os.getenv("GRACE_RETRIEVAL_BACKEND", "auto")
 SEMANTIC_MODEL_NAME = os.getenv("GRACE_RETRIEVAL_MODEL_ID", DEFAULT_RETRIEVAL_MODEL_REPO_ID)
-SEMANTIC_MODEL_DIR = default_retrieval_model_dir(SEMANTIC_MODEL_NAME)
+SEMANTIC_MODEL_DIR = Path(os.getenv("GRACE_RETRIEVAL_MODEL_DIR")) if os.getenv("GRACE_RETRIEVAL_MODEL_DIR") else default_retrieval_model_dir(SEMANTIC_MODEL_NAME)
 SEMANTIC_BATCH_SIZE = int(os.getenv("GRACE_RETRIEVAL_BATCH_SIZE", str(DEFAULT_EMBEDDING_BATCH_SIZE)))
 SEMANTIC_MAX_LENGTH = int(os.getenv("GRACE_RETRIEVAL_MAX_LENGTH", str(DEFAULT_EMBEDDING_MAX_LENGTH)))
 AUTO_DOWNLOAD_SEMANTIC_MODEL = os.getenv("GRACE_AUTO_DOWNLOAD_RETRIEVAL_MODEL", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -93,6 +94,7 @@ def main() -> None:
         "graph_backend_resolved": bank.get("graph_backend_resolved"),
         "graph_backend_notice": bank.get("graph_backend_notice"),
         "graph_backend_counts": bank.get("graph_backend_counts"),
+        "demo_seed": SEED,
     }
     dump_json(output_dir / "summary.json", summary)
     print(f"Saved demo bank for {DATASET_NAME} to {bank_path}")

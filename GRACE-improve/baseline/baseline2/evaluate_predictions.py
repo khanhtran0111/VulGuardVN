@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from common import METRICS_DIR, PREDICTIONS_DIR, dump_json
-from metrics import bootstrap_f1_interval, compute_binary_metrics, mcnemar_exact
+from metrics import bootstrap_f1_interval, compute_binary_metrics, compute_branch_metrics, paired_metric_deltas
 
 
 DEFAULT_DATASET_NAME = "devign"
@@ -83,6 +83,7 @@ def build_evaluation_metrics(
     baseline_compare_path: Path | None = None,
     expected_schema_version: int = EXPECTED_SCHEMA_VERSION,
     bootstrap_iterations: int = 1000,
+    bootstrap_seed: int = 42,
     run_state_path: Path | None = None,
 ) -> dict[str, Any]:
     resolved_dataset = dataset_name or run_state.get("dataset") or DEFAULT_DATASET_NAME
@@ -108,26 +109,19 @@ def build_evaluation_metrics(
     metrics["graph_backend_counts"] = run_state.get("graph_backend_counts")
     metrics["timing_ms"] = run_state.get("timing_ms")
     metrics["run_signature"] = run_state.get("run_signature")
-    metrics["bootstrap_f1"] = bootstrap_f1_interval(labels, predictions, iterations=bootstrap_iterations)
+    metrics["bootstrap_f1"] = bootstrap_f1_interval(
+        labels, predictions, iterations=bootstrap_iterations, seed=bootstrap_seed
+    )
+    metrics["branch_metrics"] = compute_branch_metrics(rows)
     metrics["config"] = run_state.get("config")
     metrics["predictions_path"] = run_state.get("predictions_path")
     if run_state_path is not None:
         metrics["run_state_path"] = str(run_state_path)
 
     if baseline_compare_path:
-        baseline_rows = {row["record_id"]: row for row in load_predictions(baseline_compare_path)}
-        aligned = [row for row in rows if row["record_id"] in baseline_rows]
-        if aligned:
-            base_predictions = [int(baseline_rows[row["record_id"]]["prediction"]) for row in aligned]
-            aligned_labels = [int(row["ground_truth"]) for row in aligned]
-            aligned_predictions = [int(row["prediction"]) for row in aligned]
-            metrics["comparison"] = {
-                "mcnemar": mcnemar_exact(aligned_labels, base_predictions, aligned_predictions),
-                "baseline_f1": compute_binary_metrics(aligned_labels, base_predictions)["f1"],
-                "current_f1": compute_binary_metrics(aligned_labels, aligned_predictions)["f1"],
-                "aligned_samples": len(aligned),
-                "baseline_compare_path": str(baseline_compare_path),
-            }
+        baseline_rows = load_predictions(baseline_compare_path)
+        metrics["comparison"] = paired_metric_deltas(baseline_rows, rows, require_identical_records=True)
+        metrics["comparison"]["baseline_compare_path"] = str(baseline_compare_path)
 
     return metrics
 
@@ -140,6 +134,7 @@ def evaluate_prediction_artifacts(
     baseline_compare_path: Path | None = None,
     expected_schema_version: int = EXPECTED_SCHEMA_VERSION,
     bootstrap_iterations: int = 1000,
+    bootstrap_seed: int = 42,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     if not predictions_path.exists():
         raise FileNotFoundError(f"Missing predictions file: {predictions_path}")
@@ -156,6 +151,7 @@ def evaluate_prediction_artifacts(
         baseline_compare_path=baseline_compare_path,
         expected_schema_version=expected_schema_version,
         bootstrap_iterations=bootstrap_iterations,
+        bootstrap_seed=bootstrap_seed,
         run_state_path=run_state_path,
     )
     return rows, run_state, metrics
@@ -166,10 +162,11 @@ def write_evaluation_summary(
     *,
     dataset_name: str | None = None,
     filename: str = "evaluation_summary.json",
+    output_path: Path | None = None,
 ) -> Path:
     resolved_dataset = dataset_name or metrics.get("dataset")
     if not resolved_dataset:
         raise ValueError("dataset_name is required when metrics do not include a dataset field.")
-    output_path = METRICS_DIR / resolved_dataset / filename
-    dump_json(output_path, metrics)
-    return output_path
+    resolved_output_path = output_path or (METRICS_DIR / resolved_dataset / filename)
+    dump_json(resolved_output_path, metrics)
+    return resolved_output_path

@@ -32,6 +32,22 @@ FEATURE_STORE_SCHEMA_VERSION = 1
 PREFILTER_MODEL_SCHEMA_VERSION = 1
 DEFAULT_PREFILTER_MODEL_NAME = "hybrid_multiview_prefilter"
 DEFAULT_FEATURE_PROGRESS_EVERY = 256
+ALL_VIEWS = ("token", "ast", "semantic", "graph_numeric")
+
+
+def normalize_enabled_views(enabled_views: Iterable[str] | str | None = None) -> tuple[str, ...]:
+    if enabled_views is None:
+        return ALL_VIEWS
+    if isinstance(enabled_views, str):
+        requested = {item.strip() for item in enabled_views.split(",") if item.strip()}
+    else:
+        requested = {str(item).strip() for item in enabled_views if str(item).strip()}
+    unknown = requested - set(ALL_VIEWS)
+    if unknown:
+        raise ValueError(f"Unknown prefilter view(s): {sorted(unknown)}")
+    if not requested:
+        raise ValueError("At least one prefilter view must be enabled")
+    return tuple(view for view in ALL_VIEWS if view in requested)
 
 NUMERIC_FEATURE_NAMES = [
     "log_token_count",
@@ -216,7 +232,9 @@ def build_feature_store(
         auto_download=auto_download_semantic_model,
     )
 
+    preprocessing_started = time.perf_counter()
     rows = list(_iter_records(split_path, limit=limit))
+    dataset_preprocessing_ms = (time.perf_counter() - preprocessing_started) * 1000.0
     if not rows:
         raise RuntimeError(f"No records found for dataset={dataset_name} split={split_name}")
 
@@ -234,14 +252,23 @@ def build_feature_store(
     numeric_features: list[np.ndarray] = []
     codes: list[str] = []
     semantic_inputs: list[str] = []
+    graph_extraction_ms = 0.0
+    token_ast_extraction_ms = 0.0
+    numeric_graph_feature_ms = 0.0
 
     for index, record in enumerate(rows, start=1):
+        graph_started = time.perf_counter()
         graph_features = get_graph_features(record, graph_backend=graph_backend, force_rebuild=force_rebuild)
+        graph_extraction_ms += (time.perf_counter() - graph_started) * 1000.0
         code = record["code"]
+        text_view_started = time.perf_counter()
         token_texts.append(" ".join(tokenize_code(code)))
         ast_text = graph_features.get("ast_sequence") or build_skeleton(code)
         ast_texts.append(ast_text)
+        token_ast_extraction_ms += (time.perf_counter() - text_view_started) * 1000.0
+        numeric_started = time.perf_counter()
         numeric_features.append(_compute_numeric_features(code, graph_features))
+        numeric_graph_feature_ms += (time.perf_counter() - numeric_started) * 1000.0
         labels.append(int(record["label"]))
         record_ids.append(str(record["record_id"]))
         code_hashes.append(str(record.get("code_hash") or ""))
@@ -252,7 +279,10 @@ def build_feature_store(
             elapsed = time.perf_counter() - started
             print(f"[feature-store] prepared graph view {index}/{len(rows)} in {elapsed:.1f}s")
 
+    semantic_started = time.perf_counter()
     semantic_embeddings = encoder.encode_texts(semantic_inputs)
+    semantic_embedding_ms = (time.perf_counter() - semantic_started) * 1000.0
+    total_feature_ms = (time.perf_counter() - started) * 1000.0
     payload = {
         "schema_version": FEATURE_STORE_SCHEMA_VERSION,
         "dataset": dataset_name,
@@ -269,6 +299,19 @@ def build_feature_store(
         "semantic_embeddings": np.asarray(semantic_embeddings, dtype=np.float32),
         "codes": codes,
         "feature_names": list(NUMERIC_FEATURE_NAMES),
+        "timing_ms": {
+            "dataset_preprocessing_total": float(dataset_preprocessing_ms),
+            "dataset_preprocessing_mean": float(dataset_preprocessing_ms / max(len(rows), 1)),
+            "token_ast_feature_extraction_total": float(token_ast_extraction_ms),
+            "token_ast_feature_extraction_mean": float(token_ast_extraction_ms / max(len(rows), 1)),
+            "unixcoder_embedding_total": float(semantic_embedding_ms),
+            "unixcoder_embedding_mean": float(semantic_embedding_ms / max(len(rows), 1)),
+            "numeric_graph_feature_extraction_total": float(numeric_graph_feature_ms),
+            "numeric_graph_feature_extraction_mean": float(numeric_graph_feature_ms / max(len(rows), 1)),
+            "graph_extraction_total": float(graph_extraction_ms),
+            "graph_extraction_mean": float(graph_extraction_ms / max(len(rows), 1)),
+            "feature_store_total": float(total_feature_ms),
+        },
     }
     ensure_dir(output_path.parent)
     joblib.dump(payload, output_path)
@@ -301,113 +344,120 @@ def _build_prefilter_model(
     projection_dim: int,
     dense_units: int,
     dropout_rate: float,
+    enabled_views: Iterable[str] | str | None = None,
 ) -> keras.Model:
-    token_vectorizer = keras.layers.TextVectorization(
-        standardize=None,
-        split="whitespace",
-        output_mode="int",
-        output_sequence_length=token_sequence_length,
-        max_tokens=token_max_tokens,
-        name="token_vectorizer",
-    )
-    ast_vectorizer = keras.layers.TextVectorization(
-        standardize=None,
-        split="whitespace",
-        output_mode="int",
-        output_sequence_length=ast_sequence_length,
-        max_tokens=ast_max_tokens,
-        name="ast_vectorizer",
-    )
+    enabled = normalize_enabled_views(enabled_views)
+    inputs: dict[str, Any] = {}
+    outputs: dict[str, Any] = {}
+    fusion_parts: list[Any] = []
+    graph_parts: list[Any] = []
+    token_vectorizer = None
+    ast_vectorizer = None
 
-    token_input = keras.Input(shape=(), dtype=tf.string, name="token_text")
-    ast_input = keras.Input(shape=(), dtype=tf.string, name="ast_text")
-    semantic_input = keras.Input(shape=(semantic_dim,), dtype=tf.float32, name="semantic_embedding")
-    numeric_input = keras.Input(shape=(numeric_dim,), dtype=tf.float32, name="numeric_features")
+    if "token" in enabled:
+        token_vectorizer = keras.layers.TextVectorization(
+            standardize=None, split="whitespace", output_mode="int",
+            output_sequence_length=token_sequence_length, max_tokens=token_max_tokens,
+            name="token_vectorizer",
+        )
+        token_input = keras.Input(shape=(), dtype=tf.string, name="token_text")
+        inputs["token_text"] = token_input
+        token_branch = token_vectorizer(token_input)
+        token_branch = keras.layers.Embedding(token_max_tokens, token_embedding_dim, name="token_embedding")(token_branch)
+        token_branch = keras.layers.SpatialDropout1D(dropout_rate)(token_branch)
+        token_branch = keras.layers.Conv1D(token_filters, 5, padding="same", activation="relu")(token_branch)
+        token_branch = keras.layers.Conv1D(token_filters, 3, padding="same", activation="relu")(token_branch)
+        token_branch = keras.layers.GlobalMaxPooling1D()(token_branch)
+        fusion_parts.append(token_branch)
 
-    token_branch = token_vectorizer(token_input)
-    token_branch = keras.layers.Embedding(token_max_tokens, token_embedding_dim, name="token_embedding")(token_branch)
-    token_branch = keras.layers.SpatialDropout1D(dropout_rate)(token_branch)
-    token_branch = keras.layers.Conv1D(token_filters, 5, padding="same", activation="relu")(token_branch)
-    token_branch = keras.layers.Conv1D(token_filters, 3, padding="same", activation="relu")(token_branch)
-    token_branch = keras.layers.GlobalMaxPooling1D()(token_branch)
+    if "ast" in enabled:
+        ast_vectorizer = keras.layers.TextVectorization(
+            standardize=None, split="whitespace", output_mode="int",
+            output_sequence_length=ast_sequence_length, max_tokens=ast_max_tokens,
+            name="ast_vectorizer",
+        )
+        ast_input = keras.Input(shape=(), dtype=tf.string, name="ast_text")
+        inputs["ast_text"] = ast_input
+        ast_branch = ast_vectorizer(ast_input)
+        ast_branch = keras.layers.Embedding(ast_max_tokens, ast_embedding_dim, name="ast_embedding")(ast_branch)
+        ast_branch = keras.layers.SpatialDropout1D(dropout_rate)(ast_branch)
+        ast_branch = keras.layers.Conv1D(ast_filters, 5, padding="same", activation="relu")(ast_branch)
+        ast_branch = keras.layers.Conv1D(ast_filters, 3, padding="same", activation="relu")(ast_branch)
+        ast_branch = keras.layers.GlobalMaxPooling1D()(ast_branch)
+        fusion_parts.append(ast_branch)
+        graph_parts.append(ast_branch)
 
-    ast_branch = ast_vectorizer(ast_input)
-    ast_branch = keras.layers.Embedding(ast_max_tokens, ast_embedding_dim, name="ast_embedding")(ast_branch)
-    ast_branch = keras.layers.SpatialDropout1D(dropout_rate)(ast_branch)
-    ast_branch = keras.layers.Conv1D(ast_filters, 5, padding="same", activation="relu")(ast_branch)
-    ast_branch = keras.layers.Conv1D(ast_filters, 3, padding="same", activation="relu")(ast_branch)
-    ast_branch = keras.layers.GlobalMaxPooling1D()(ast_branch)
+    if "semantic" in enabled:
+        semantic_input = keras.Input(shape=(semantic_dim,), dtype=tf.float32, name="semantic_embedding")
+        inputs["semantic_embedding"] = semantic_input
+        semantic_branch = keras.layers.Dense(projection_dim, activation="relu")(semantic_input)
+        semantic_branch = keras.layers.Dropout(dropout_rate)(semantic_branch)
+        semantic_hidden = keras.layers.Dense(max(32, projection_dim // 2), activation="relu")(semantic_branch)
+        semantic_score = keras.layers.Dense(1, activation="sigmoid", name="semantic_score")(semantic_hidden)
+        fusion_parts.extend([semantic_branch, semantic_score])
+        outputs["semantic_score"] = semantic_score
 
-    semantic_branch = keras.layers.Dense(projection_dim, activation="relu")(semantic_input)
-    semantic_branch = keras.layers.Dropout(dropout_rate)(semantic_branch)
-    semantic_hidden = keras.layers.Dense(max(32, projection_dim // 2), activation="relu")(semantic_branch)
-    semantic_score = keras.layers.Dense(1, activation="sigmoid", name="semantic_score")(semantic_hidden)
+    if "graph_numeric" in enabled:
+        numeric_input = keras.Input(shape=(numeric_dim,), dtype=tf.float32, name="numeric_features")
+        inputs["numeric_features"] = numeric_input
+        fusion_parts.append(numeric_input)
+        graph_parts.append(numeric_input)
 
-    graph_branch = keras.layers.Concatenate(name="graph_concat")([ast_branch, numeric_input])
-    graph_branch = keras.layers.Dense(projection_dim, activation="relu")(graph_branch)
-    graph_branch = keras.layers.Dropout(dropout_rate)(graph_branch)
-    graph_hidden = keras.layers.Dense(max(32, projection_dim // 2), activation="relu")(graph_branch)
-    graph_score = keras.layers.Dense(1, activation="sigmoid", name="graph_score")(graph_hidden)
+    if graph_parts:
+        graph_branch = graph_parts[0] if len(graph_parts) == 1 else keras.layers.Concatenate(name="graph_concat")(graph_parts)
+        graph_branch = keras.layers.Dense(projection_dim, activation="relu")(graph_branch)
+        graph_branch = keras.layers.Dropout(dropout_rate)(graph_branch)
+        graph_hidden = keras.layers.Dense(max(32, projection_dim // 2), activation="relu")(graph_branch)
+        graph_score = keras.layers.Dense(1, activation="sigmoid", name="graph_score")(graph_hidden)
+        fusion_parts.append(graph_score)
+        outputs["graph_score"] = graph_score
 
-    fusion_branch = keras.layers.Concatenate(name="fusion_concat")(
-        [token_branch, ast_branch, semantic_branch, numeric_input, semantic_score, graph_score]
-    )
+    fusion_branch = fusion_parts[0] if len(fusion_parts) == 1 else keras.layers.Concatenate(name="fusion_concat")(fusion_parts)
     fusion_branch = keras.layers.Dense(dense_units, activation="relu")(fusion_branch)
     fusion_branch = keras.layers.Dropout(dropout_rate)(fusion_branch)
     fusion_branch = keras.layers.Dense(max(64, dense_units // 2), activation="relu")(fusion_branch)
     fusion_score = keras.layers.Dense(1, activation="sigmoid", name="fusion_score")(fusion_branch)
 
-    model = keras.Model(
-        inputs={
-            "token_text": token_input,
-            "ast_text": ast_input,
-            "semantic_embedding": semantic_input,
-            "numeric_features": numeric_input,
-        },
-        outputs={
-            "fusion_score": fusion_score,
-            "semantic_score": semantic_score,
-            "graph_score": graph_score,
-        },
-    )
+    outputs = {"fusion_score": fusion_score, **outputs}
+    model = keras.Model(inputs=inputs, outputs=outputs)
     model.token_vectorizer = token_vectorizer
     model.ast_vectorizer = ast_vectorizer
+    model.enabled_views = enabled
     return model
 
 
-def _prepare_scaled_inputs(payload: dict, numeric_mean: np.ndarray, numeric_std: np.ndarray) -> dict[str, np.ndarray]:
+def _prepare_scaled_inputs(
+    payload: dict,
+    numeric_mean: np.ndarray,
+    numeric_std: np.ndarray,
+    enabled_views: Iterable[str] | str | None = None,
+) -> dict[str, np.ndarray]:
+    enabled = normalize_enabled_views(enabled_views)
     scaled_numeric = (payload["numeric_features"] - numeric_mean) / numeric_std
-    return {
-        "token_text": np.asarray(payload["token_texts"], dtype=object),
-        "ast_text": np.asarray(payload["ast_texts"], dtype=object),
-        "semantic_embedding": np.asarray(payload["semantic_embeddings"], dtype=np.float32),
-        "numeric_features": np.asarray(scaled_numeric, dtype=np.float32),
+    candidates = {
+        "token": ("token_text", np.asarray(payload["token_texts"], dtype=object)),
+        "ast": ("ast_text", np.asarray(payload["ast_texts"], dtype=object)),
+        "semantic": ("semantic_embedding", np.asarray(payload["semantic_embeddings"], dtype=np.float32)),
+        "graph_numeric": ("numeric_features", np.asarray(scaled_numeric, dtype=np.float32)),
     }
+    return {input_name: value for view, (input_name, value) in candidates.items() if view in enabled}
 
 
-def _targets(labels: np.ndarray) -> dict[str, np.ndarray]:
+def _targets(labels: np.ndarray, output_names: Iterable[str] = ("fusion_score", "semantic_score", "graph_score")) -> dict[str, np.ndarray]:
     values = labels.astype(np.float32).reshape(-1, 1)
-    return {
-        "fusion_score": values,
-        "semantic_score": values,
-        "graph_score": values,
-    }
+    return {name: values for name in output_names}
 
 
-def _sample_weights_from_array(weights: np.ndarray) -> dict[str, np.ndarray]:
+def _sample_weights_from_array(weights: np.ndarray, output_names: Iterable[str] = ("fusion_score", "semantic_score", "graph_score")) -> dict[str, np.ndarray]:
     weights = np.asarray(weights, dtype=np.float32)
-    return {
-        "fusion_score": weights,
-        "semantic_score": weights,
-        "graph_score": weights,
-    }
+    return {name: weights for name in output_names}
 
 
-def _sample_weights(labels: np.ndarray, positive_weight: float, extra_weights: np.ndarray | None = None) -> dict[str, np.ndarray]:
+def _sample_weights(labels: np.ndarray, positive_weight: float, extra_weights: np.ndarray | None = None, output_names: Iterable[str] = ("fusion_score", "semantic_score", "graph_score")) -> dict[str, np.ndarray]:
     weights = np.where(labels.astype(int) == 1, positive_weight, 1.0).astype(np.float32)
     if extra_weights is not None:
         weights = weights * np.asarray(extra_weights, dtype=np.float32)
-    return _sample_weights_from_array(weights)
+    return _sample_weights_from_array(weights, output_names=output_names)
 
 
 def _format_metrics(logs: dict | None) -> str:
@@ -499,8 +549,11 @@ def train_hybrid_prefilter(
     hard_negative_quantile: float = 0.85,
     hard_negative_weight: float = 2.5,
     hard_negative_epochs: int = 2,
+    enabled_views: Iterable[str] | str | None = None,
+    output_dir: Path | None = None,
 ) -> dict:
     tf.keras.utils.set_random_seed(random_seed)
+    enabled = normalize_enabled_views(enabled_views)
     train_payload = load_feature_store(dataset_name, "train")
     val_payload = load_feature_store(dataset_name, "val")
 
@@ -524,12 +577,15 @@ def train_hybrid_prefilter(
         projection_dim=projection_dim,
         dense_units=dense_units,
         dropout_rate=dropout_rate,
+        enabled_views=enabled,
     )
-    model.token_vectorizer.adapt(tf.data.Dataset.from_tensor_slices(train_payload["token_texts"]).batch(batch_size))
-    model.ast_vectorizer.adapt(tf.data.Dataset.from_tensor_slices(train_payload["ast_texts"]).batch(batch_size))
+    if model.token_vectorizer is not None:
+        model.token_vectorizer.adapt(tf.data.Dataset.from_tensor_slices(train_payload["token_texts"]).batch(batch_size))
+    if model.ast_vectorizer is not None:
+        model.ast_vectorizer.adapt(tf.data.Dataset.from_tensor_slices(train_payload["ast_texts"]).batch(batch_size))
 
-    train_inputs = _prepare_scaled_inputs(train_payload, numeric_mean, numeric_std)
-    val_inputs = _prepare_scaled_inputs(val_payload, numeric_mean, numeric_std)
+    train_inputs = _prepare_scaled_inputs(train_payload, numeric_mean, numeric_std, enabled)
+    val_inputs = _prepare_scaled_inputs(val_payload, numeric_mean, numeric_std, enabled)
     train_labels = np.asarray(train_payload["labels"], dtype=np.int32)
     val_labels = np.asarray(val_payload["labels"], dtype=np.int32)
     positive_weight = max(1.0, float(np.sum(train_labels == 0) / max(np.sum(train_labels == 1), 1)))
@@ -541,15 +597,13 @@ def train_hybrid_prefilter(
         )
 
     binary_loss = _build_binary_loss(loss_name, focal_gamma)
+    output_names = tuple(model.output_names)
+    loss_weights = {name: (1.0 if name == "fusion_score" else 0.25) for name in output_names}
 
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-        loss={
-            "fusion_score": binary_loss,
-            "semantic_score": binary_loss,
-            "graph_score": binary_loss,
-        },
-        loss_weights={"fusion_score": 1.0, "semantic_score": 0.25, "graph_score": 0.25},
+        loss={name: binary_loss for name in output_names},
+        loss_weights=loss_weights,
         metrics={
             "fusion_score": [
                 keras.metrics.BinaryAccuracy(name="accuracy"),
@@ -570,9 +624,9 @@ def train_hybrid_prefilter(
 
     history = model.fit(
         train_inputs,
-        _targets(train_labels),
-        validation_data=(val_inputs, _targets(val_labels), _sample_weights(val_labels, 1.0)),
-        sample_weight=_sample_weights(train_labels, positive_weight),
+        _targets(train_labels, output_names),
+        validation_data=(val_inputs, _targets(val_labels, output_names), _sample_weights(val_labels, 1.0, output_names=output_names)),
+        sample_weight=_sample_weights(train_labels, positive_weight, output_names=output_names),
         epochs=epochs,
         batch_size=batch_size,
         callbacks=callbacks,
@@ -614,9 +668,9 @@ def train_hybrid_prefilter(
             hard_callbacks: list[keras.callbacks.Callback] = [ProgressLogger()] if log_progress else []
             hard_history = model.fit(
                 train_inputs,
-                _targets(train_labels),
-                validation_data=(val_inputs, _targets(val_labels), _sample_weights(val_labels, 1.0)),
-                sample_weight=_sample_weights(train_labels, positive_weight, extra_weights=hard_negative_weights),
+                _targets(train_labels, output_names),
+                validation_data=(val_inputs, _targets(val_labels, output_names), _sample_weights(val_labels, 1.0, output_names=output_names)),
+                sample_weight=_sample_weights(train_labels, positive_weight, extra_weights=hard_negative_weights, output_names=output_names),
                 epochs=hard_negative_epochs,
                 batch_size=batch_size,
                 callbacks=hard_callbacks,
@@ -624,10 +678,12 @@ def train_hybrid_prefilter(
             )
             history.history["hard_negative_loss"] = [float(value) for value in hard_history.history.get("loss", [])]
 
-    output_dir = ensure_dir(MODELS_DIR / dataset_name / model_name)
-    model.save_weights(output_dir / "weights.weights.h5")
-    (output_dir / "token_vocabulary.txt").write_text("\n".join(model.token_vectorizer.get_vocabulary()), encoding="utf-8")
-    (output_dir / "ast_vocabulary.txt").write_text("\n".join(model.ast_vectorizer.get_vocabulary()), encoding="utf-8")
+    resolved_output_dir = ensure_dir(Path(output_dir) if output_dir is not None else MODELS_DIR / dataset_name / model_name)
+    model.save_weights(resolved_output_dir / "weights.weights.h5")
+    if model.token_vectorizer is not None:
+        (resolved_output_dir / "token_vocabulary.txt").write_text("\n".join(model.token_vectorizer.get_vocabulary()), encoding="utf-8")
+    if model.ast_vectorizer is not None:
+        (resolved_output_dir / "ast_vocabulary.txt").write_text("\n".join(model.ast_vectorizer.get_vocabulary()), encoding="utf-8")
 
     config = {
         "schema_version": PREFILTER_MODEL_SCHEMA_VERSION,
@@ -655,13 +711,15 @@ def train_hybrid_prefilter(
         "hard_negative_quantile": float(hard_negative_quantile),
         "hard_negative_weight": float(hard_negative_weight),
         "hard_negative_epochs": int(hard_negative_epochs),
+        "enabled_views": list(enabled),
+        "model_output_names": list(output_names),
     }
-    dump_json(output_dir / "config.json", config)
+    dump_json(resolved_output_dir / "config.json", config)
 
     summary = {
         "dataset": dataset_name,
         "model_name": model_name,
-        "model_path": str(output_dir),
+        "model_path": str(resolved_output_dir),
         "train_size": int(len(train_labels)),
         "val_size": int(len(val_labels)),
         "positive_class_weight": float(positive_weight),
@@ -677,6 +735,7 @@ def train_hybrid_prefilter(
         "hard_negative_weight": float(hard_negative_weight),
         "hard_negative_epochs": int(hard_negative_epochs),
         "hard_negative_summary": hard_negative_summary,
+        "enabled_views": list(enabled),
     }
     dump_json(MODELS_DIR / dataset_name / f"training_summary.{model_name}.json", summary)
     return summary
@@ -689,6 +748,7 @@ class HybridPrefilterBundle:
         if not config_path.exists():
             raise FileNotFoundError(f"Missing prefilter config: {config_path}")
         self.config = _load_json(config_path)
+        self.enabled_views = normalize_enabled_views(self.config.get("enabled_views", ALL_VIEWS))
         self.model = _build_prefilter_model(
             token_max_tokens=int(self.config["token_max_tokens"]),
             token_sequence_length=int(self.config["token_sequence_length"]),
@@ -703,27 +763,40 @@ class HybridPrefilterBundle:
             projection_dim=int(self.config["projection_dim"]),
             dense_units=int(self.config["dense_units"]),
             dropout_rate=float(self.config["dropout_rate"]),
+            enabled_views=self.enabled_views,
         )
-        token_vocabulary = (self.artifact_dir / "token_vocabulary.txt").read_text(encoding="utf-8").splitlines()
-        ast_vocabulary = (self.artifact_dir / "ast_vocabulary.txt").read_text(encoding="utf-8").splitlines()
-        self.model.token_vectorizer.set_vocabulary(token_vocabulary)
-        self.model.ast_vectorizer.set_vocabulary(ast_vocabulary)
+        if self.model.token_vectorizer is not None:
+            token_vocabulary = (self.artifact_dir / "token_vocabulary.txt").read_text(encoding="utf-8").splitlines()
+            self.model.token_vectorizer.set_vocabulary(token_vocabulary)
+        if self.model.ast_vectorizer is not None:
+            ast_vocabulary = (self.artifact_dir / "ast_vocabulary.txt").read_text(encoding="utf-8").splitlines()
+            self.model.ast_vectorizer.set_vocabulary(ast_vocabulary)
         self.model.load_weights(self.artifact_dir / "weights.weights.h5")
         self.numeric_mean = np.asarray(self.config["numeric_mean"], dtype=np.float32)
         self.numeric_std = np.asarray(self.config["numeric_std"], dtype=np.float32)
 
     def predict_payload(self, payload: dict, batch_size: int = 128) -> dict[str, np.ndarray]:
-        inputs = _prepare_scaled_inputs(payload, self.numeric_mean, self.numeric_std)
+        inputs = _prepare_scaled_inputs(payload, self.numeric_mean, self.numeric_std, self.enabled_views)
         outputs = self.model.predict(inputs, batch_size=batch_size, verbose=0)
-        return {
-            "fusion_score": outputs["fusion_score"].reshape(-1),
-            "semantic_score": outputs["semantic_score"].reshape(-1),
-            "graph_score": outputs["graph_score"].reshape(-1),
-        }
+        if not isinstance(outputs, dict):
+            outputs = dict(zip(self.model.output_names, outputs if isinstance(outputs, list) else [outputs]))
+        count = len(payload["record_ids"])
+        result = {name: np.asarray(values).reshape(-1) for name, values in outputs.items()}
+        # Callers written before ablations expect these diagnostic keys.  A
+        # missing auxiliary head is represented as unavailable (NaN), while
+        # the disabled view itself is absent from the model graph.
+        result.setdefault("semantic_score", np.full(count, np.nan, dtype=np.float32))
+        result.setdefault("graph_score", np.full(count, np.nan, dtype=np.float32))
+        return result
 
 
-def load_hybrid_prefilter_bundle(dataset_name: str, model_name: str = DEFAULT_PREFILTER_MODEL_NAME) -> HybridPrefilterBundle:
-    return HybridPrefilterBundle(MODELS_DIR / dataset_name / model_name)
+def load_hybrid_prefilter_bundle(
+    dataset_name: str,
+    model_name: str = DEFAULT_PREFILTER_MODEL_NAME,
+    *,
+    artifact_dir: Path | None = None,
+) -> HybridPrefilterBundle:
+    return HybridPrefilterBundle(artifact_dir or (MODELS_DIR / dataset_name / model_name))
 
 
 def predict_feature_store(
@@ -732,8 +805,9 @@ def predict_feature_store(
     *,
     model_name: str = DEFAULT_PREFILTER_MODEL_NAME,
     batch_size: int = 128,
+    artifact_dir: Path | None = None,
 ) -> dict:
-    bundle = load_hybrid_prefilter_bundle(dataset_name, model_name=model_name)
+    bundle = load_hybrid_prefilter_bundle(dataset_name, model_name=model_name, artifact_dir=artifact_dir)
     payload = load_feature_store(dataset_name, split_name)
     predictions = bundle.predict_payload(payload, batch_size=batch_size)
     return {
@@ -772,12 +846,14 @@ __all__ = [
     "DEFAULT_PREFILTER_MODEL_NAME",
     "FEATURE_STORE_SCHEMA_VERSION",
     "NUMERIC_FEATURE_NAMES",
+    "ALL_VIEWS",
     "HybridPrefilterBundle",
     "build_feature_store",
     "build_single_record_feature_payload",
     "feature_store_path",
     "load_feature_store",
     "load_hybrid_prefilter_bundle",
+    "normalize_enabled_views",
     "predict_feature_store",
     "train_hybrid_prefilter",
 ]

@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 from hybrid_prefilter import DEFAULT_PREFILTER_MODEL_NAME, train_hybrid_prefilter
 from retrieval import DEFAULT_RETRIEVAL_MODEL_REPO_ID
@@ -29,6 +30,8 @@ AST_FILTERS = int(os.getenv("GRACE_AST_FILTERS", "64"))
 PROJECTION_DIM = int(os.getenv("GRACE_PREFILTER_PROJECTION_DIM", "192"))
 DENSE_UNITS = int(os.getenv("GRACE_PREFILTER_DENSE_UNITS", "192"))
 DROPOUT_RATE = float(os.getenv("GRACE_PREFILTER_DROPOUT", "0.25"))
+ENABLED_VIEWS = os.getenv("GRACE_ENABLED_VIEWS", "token,ast,semantic,graph_numeric")
+MODEL_OUTPUT_DIR = Path(os.getenv("GRACE_PREFILTER_OUTPUT_DIR")) if os.getenv("GRACE_PREFILTER_OUTPUT_DIR") else None
 
 
 def main() -> None:
@@ -58,6 +61,8 @@ def main() -> None:
         hard_negative_quantile=HARD_NEGATIVE_QUANTILE,
         hard_negative_weight=HARD_NEGATIVE_WEIGHT,
         hard_negative_epochs=HARD_NEGATIVE_EPOCHS,
+        enabled_views=ENABLED_VIEWS,
+        output_dir=MODEL_OUTPUT_DIR,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

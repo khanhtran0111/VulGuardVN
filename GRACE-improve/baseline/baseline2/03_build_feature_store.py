@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 from hybrid_prefilter import build_feature_store, feature_store_path
 from retrieval import DEFAULT_RETRIEVAL_MODEL_REPO_ID, default_retrieval_model_dir
@@ -8,7 +9,7 @@ from retrieval import DEFAULT_RETRIEVAL_MODEL_REPO_ID, default_retrieval_model_d
 DATASET_NAME = os.getenv("GRACE_DATASET", "devign")
 GRAPH_BACKEND = os.getenv("GRACE_GRAPH_BACKEND", "auto")
 SEMANTIC_MODEL_ID = os.getenv("GRACE_RETRIEVAL_MODEL_ID", DEFAULT_RETRIEVAL_MODEL_REPO_ID)
-SEMANTIC_MODEL_DIR = default_retrieval_model_dir(SEMANTIC_MODEL_ID)
+SEMANTIC_MODEL_DIR = Path(os.getenv("GRACE_RETRIEVAL_MODEL_DIR")) if os.getenv("GRACE_RETRIEVAL_MODEL_DIR") else default_retrieval_model_dir(SEMANTIC_MODEL_ID)
 AUTO_DOWNLOAD = os.getenv("GRACE_AUTO_DOWNLOAD_RETRIEVAL_MODEL", "0").strip().lower() in {"1", "true", "yes", "on"}
 FORCE_REBUILD = os.getenv("GRACE_FORCE_REBUILD_FEATURES", "0").strip().lower() in {"1", "true", "yes", "on"}
 BATCH_SIZE = int(os.getenv("GRACE_FEATURE_BATCH_SIZE", "16"))
@@ -47,6 +48,7 @@ def main() -> None:
             "semantic_dim": int(payload["semantic_embeddings"].shape[1]),
             "numeric_dim": int(payload["numeric_features"].shape[1]),
             "graph_backends": sorted(set(payload["graph_backends"])),
+            "timing_ms": payload.get("timing_ms", {}),
         }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
