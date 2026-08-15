@@ -1,0 +1,19 @@
+# Patch: enforce strict tau_high > tau_low in threshold selection
+# File: GRACE-improve/baseline/baseline2/05_calibrate_budget_controller.py
+# (mirror the same change in the corresponding full_pipeline.ipynb cell)
+#
+# Rationale: the paper (Eq. 3) states 0 <= tau_low < tau_high <= 1.
+# choose_best_f1_threshold uses an inclusive minimum, so tau_high could
+# in principle equal tau_low. This guard makes the strict ordering an
+# invariant of the released code, matching the paper.
+#
+# After the line that computes tau_high (both the fallback path using
+#   choose_best_f1_threshold(..., minimum=max(fallback_low, DIRECT_ACCEPT_MIN_PROBABILITY))
+# and the strategy path using tau_high_minimum = max(float(tau_low), DIRECT_ACCEPT_MIN_PROBABILITY)),
+# add:
+
+if tau_high <= tau_low:
+    tau_high = min(1.0, tau_low + 1e-6)
+
+# One line, no behavioural change for any retained run (all satisfied
+# tau_high > tau_low already; smallest observed gap 0.0882 -> 0.2469).
