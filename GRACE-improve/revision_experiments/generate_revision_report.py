@@ -88,14 +88,20 @@ def discover_runs(results_root: Path) -> list[dict[str, Any]]:
 
 
 def validate_test_split_fingerprints(runs: list[dict[str, Any]]) -> None:
-    groups: dict[tuple[str, int], set[str]] = defaultdict(set)
+    groups: dict[tuple[str, str, int], set[str]] = defaultdict(set)
     for run in runs:
         fingerprint = run["metadata"].get("test_split_fingerprint")
         if fingerprint:
-            groups[(run["config"].get("dataset_name"), int(run["config"].get("split_seed", 42)))].add(str(fingerprint))
+            groups[
+                (
+                    str(run["config"].get("experiment_name")),
+                    str(run["config"].get("dataset_name")),
+                    int(run["config"].get("training_seed", 42)),
+                )
+            ].add(str(fingerprint))
     changed = {key: values for key, values in groups.items() if len(values) > 1}
     if changed:
-        raise RuntimeError(f"Fixed-test-split invariant failed across runs: {changed}")
+        raise RuntimeError(f"Paired-arm test-split invariant failed within run seeds: {changed}")
 
 
 def summary_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:

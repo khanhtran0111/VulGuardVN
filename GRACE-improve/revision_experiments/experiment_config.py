@@ -1,12 +1,13 @@
 """Typed, shared configuration for APSIPA revision experiments.
 
-The four random seeds deliberately have separate fields.  In particular,
-``split_seed`` is never derived from ``training_seed`` so every model seed is
-evaluated on the same held-out records.
+The four random seeds deliberately have separate fields.  E01 is the one
+protocol that pairs its generated split seed with its training seed; other
+experiments retain their independently configured seed semantics.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import asdict, dataclass, fields, replace
@@ -23,7 +24,8 @@ EXPERIMENTS = (
     "E05_routing_policy",
     "E06_runtime_cost",
 )
-TRAINING_SEEDS = (1, 7, 21, 42, 100)
+RUN_SEEDS = (1, 7, 21, 42, 100)
+TRAINING_SEEDS = RUN_SEEDS  # Backward-compatible name used by existing notebooks.
 ALL_VIEWS = ("token", "ast", "semantic", "graph_numeric")
 ABLATION_VIEWS = {
     "full": ALL_VIEWS,
@@ -99,8 +101,12 @@ class ExperimentConfig:
 
     @property
     def run_directory(self) -> Path:
+        root = Path(self.output_directory)
+        if self.experiment_name == "E01_multiseed" and root.name == "rerun_2408":
+            arm = "baseline" if self.configuration == "reproduced_baseline" else "selective"
+            return root / self.dataset_name / str(self.training_seed) / arm
         return (
-            Path(self.output_directory)
+            root
             / self.experiment_name
             / self.dataset_name
             / self.configuration
@@ -252,19 +258,39 @@ def validate_split_integrity(rows: Iterable[dict[str, Any]]) -> None:
             raise RuntimeError(f"code_hash leakage for {code_hash}: {previous} and {split}")
 
 
-def validate_fixed_test_records(manifests_by_training_seed: dict[int, Iterable[dict[str, Any]]]) -> None:
-    """Ensure every training seed has exactly the same test record_id set."""
-    reference_seed: int | None = None
-    reference: set[str] | None = None
-    for seed, rows in sorted(manifests_by_training_seed.items()):
-        current = {str(row["record_id"]) for row in rows if str(row.get("split")) == "test"}
-        if reference is None:
-            reference_seed, reference = seed, current
-        elif current != reference:
-            raise RuntimeError(
-                f"Test split changed between training_seed={reference_seed} and training_seed={seed}: "
-                f"symmetric_difference={len(current ^ reference)}"
-            )
+def compute_test_split_fingerprint(rows: Iterable[dict[str, Any]]) -> str:
+    """Return a stable fingerprint after checking grouped-split integrity."""
+    materialized = list(rows)
+    validate_split_integrity(materialized)
+    test_rows = sorted(
+        (str(row["record_id"]), str(row["code_hash"]))
+        for row in materialized
+        if str(row.get("split")) == "test"
+    )
+    return hashlib.sha256(json.dumps(test_rows, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def validate_paired_test_records(
+    baseline_rows: Iterable[dict[str, Any]],
+    selective_rows: Iterable[dict[str, Any]],
+) -> str:
+    """Require baseline/selective test identity within one dataset and run seed."""
+    baseline_fingerprint = compute_test_split_fingerprint(baseline_rows)
+    selective_fingerprint = compute_test_split_fingerprint(selective_rows)
+    if baseline_fingerprint != selective_fingerprint:
+        raise RuntimeError(
+            "Baseline and Selective test splits differ within the paired run: "
+            f"baseline={baseline_fingerprint}, selective={selective_fingerprint}"
+        )
+    return baseline_fingerprint
+
+
+def config_for_run_seed(config: ExperimentConfig, seed: int) -> ExperimentConfig:
+    """Apply the run seed, pairing E01 generated splits and model training."""
+    updates: dict[str, Any] = {"training_seed": int(seed)}
+    if config.experiment_name == "E01_multiseed":
+        updates["split_seed"] = int(seed)
+    return config.with_updates(**updates)
 
 
 def config_for_configuration(config: ExperimentConfig, configuration: str) -> ExperimentConfig:
@@ -287,13 +313,16 @@ __all__ = [
     "EXPERIMENTS",
     "ExperimentConfig",
     "ROUTING_POLICIES",
+    "RUN_SEEDS",
     "TRAINING_SEEDS",
     "config_for_configuration",
+    "config_for_run_seed",
     "configurations_for",
     "from_environment",
     "from_mapping",
     "load_config",
     "parse_views",
-    "validate_fixed_test_records",
+    "compute_test_split_fingerprint",
+    "validate_paired_test_records",
     "validate_split_integrity",
 ]

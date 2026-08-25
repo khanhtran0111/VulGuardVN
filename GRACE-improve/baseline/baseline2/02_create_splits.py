@@ -164,6 +164,7 @@ def _create_hint_based_splits(dataset_name: str, *, splits_dir: Path = SPLITS_DI
     split_index_path = output_dir / "split_index.csv"
     summary = _summarize_assigned(dataset_name, frame, split_index_path)
     summary["strategy"] = "source_split_hint"
+    summary["split_seed"] = None
     dump_json(output_dir / "split_summary.json", summary)
     print(f"{dataset_name}: split files written from source split hints to {output_dir}")
     return True

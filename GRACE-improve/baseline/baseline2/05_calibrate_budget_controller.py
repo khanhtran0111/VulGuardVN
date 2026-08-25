@@ -46,6 +46,20 @@ def _candidate_grid(low: float, high: float, steps: int) -> np.ndarray:
     return np.unique(np.round(np.linspace(low, high, steps), 6))
 
 
+def _validate_threshold_overrides(tau_low: float | None, tau_high: float | None) -> bool:
+    configured = tau_low is not None or tau_high is not None
+    if configured and (
+        tau_low is None
+        or tau_high is None
+        or not 0.0 <= tau_low < tau_high <= 1.0
+    ):
+        raise ValueError(
+            "GRACE_TAU_LOW and GRACE_TAU_HIGH must both be set with "
+            "0 <= tau_low < tau_high <= 1"
+        )
+    return configured
+
+
 def _choose_high_threshold(probabilities: np.ndarray, labels: np.ndarray, tau_low: float, target_precision: float, minimum: float) -> tuple[float, str]:
     best_precision_threshold = None
     for threshold in np.unique(np.round(np.sort(probabilities), 6)):
@@ -138,11 +152,15 @@ def _choose_routing_thresholds(probabilities: np.ndarray, labels: np.ndarray) ->
     if best is not None:
         return best[0], best[1], "constrained_search", best_metrics
 
-    fallback_low = float(choose_low_threshold(probabilities, labels, ROUTING_RECALL_FLOOR))
-    fallback_high, tau_high_best_f1 = choose_best_f1_threshold(probabilities, labels, minimum=max(fallback_low, DIRECT_ACCEPT_MIN_PROBABILITY))
-    fallback_metrics = _routing_stats(probabilities, labels, fallback_low, fallback_high)
+    tau_low = float(choose_low_threshold(probabilities, labels, ROUTING_RECALL_FLOOR))
+    tau_high, tau_high_best_f1 = choose_best_f1_threshold(probabilities, labels, minimum=max(tau_low, DIRECT_ACCEPT_MIN_PROBABILITY))
+    if tau_high <= tau_low:
+        tau_high = min(1.0, tau_low + 1e-6)
+    if tau_high <= tau_low:
+        raise RuntimeError("Automatic threshold selection could not satisfy tau_low < tau_high")
+    fallback_metrics = _routing_stats(probabilities, labels, tau_low, tau_high)
     fallback_metrics["tau_high_best_f1"] = float(tau_high_best_f1)
-    return fallback_low, float(fallback_high), "fallback_f1", fallback_metrics
+    return tau_low, float(tau_high), "fallback_f1", fallback_metrics
 
 
 def _save_calibration_figures(
@@ -207,9 +225,7 @@ def main() -> None:
 
     calibration = _calibration_payload(fusion_scores, labels)
     calibrated = np.asarray(calibration["calibrated"], dtype=np.float32)
-    if TAU_LOW_OVERRIDE is not None or TAU_HIGH_OVERRIDE is not None:
-        if TAU_LOW_OVERRIDE is None or TAU_HIGH_OVERRIDE is None or TAU_LOW_OVERRIDE >= TAU_HIGH_OVERRIDE:
-            raise ValueError("GRACE_TAU_LOW and GRACE_TAU_HIGH must both be set with tau_low < tau_high")
+    if _validate_threshold_overrides(TAU_LOW_OVERRIDE, TAU_HIGH_OVERRIDE):
         tau_low, tau_high, tau_strategy = TAU_LOW_OVERRIDE, TAU_HIGH_OVERRIDE, "configured_validation_operating_point"
         routing_metrics = _routing_stats(calibrated, labels, tau_low, tau_high)
     elif ROUTING_MODE == "constrained":
@@ -233,6 +249,10 @@ def main() -> None:
                 minimum=tau_high_minimum,
             )
             tau_strategy = "max_f1"
+        if tau_high <= tau_low:
+            tau_high = min(1.0, tau_low + 1e-6)
+        if tau_high <= tau_low:
+            raise RuntimeError("Automatic threshold selection could not satisfy tau_low < tau_high")
         routing_metrics = _routing_stats(calibrated, labels, tau_low, tau_high)
         routing_metrics["tau_high_best_f1"] = float(tau_high_best_f1) if tau_high_best_f1 is not None else None
 

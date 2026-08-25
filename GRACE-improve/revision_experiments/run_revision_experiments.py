@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import importlib.metadata
 import json
 import os
@@ -23,12 +22,13 @@ from typing import Any
 from experiment_config import (
     DATASETS,
     EXPERIMENTS,
-    TRAINING_SEEDS,
+    RUN_SEEDS,
     ExperimentConfig,
+    compute_test_split_fingerprint,
     config_for_configuration,
+    config_for_run_seed,
     configurations_for,
     load_config,
-    validate_split_integrity,
 )
 
 
@@ -112,6 +112,9 @@ def build_metadata(config: ExperimentConfig, status: str, **extra: Any) -> dict[
     run_state = _read_json(config.run_directory / "_pipeline" / "run_state.json", {})
     graph_counts = run_state.get("graph_backend_counts") or {}
     stage_state = _read_json(config.run_directory / "_pipeline" / "stage_state.json", {})
+    split_summary = _read_json(
+        config.run_directory / "_pipeline" / "splits" / config.dataset_name / "split_summary.json", {}
+    )
     retrieval_summary = _read_json(
         config.run_directory / "_pipeline" / "retrieval" / config.dataset_name / "summary.json", {}
     )
@@ -120,7 +123,9 @@ def build_metadata(config: ExperimentConfig, status: str, **extra: Any) -> dict[
         "dataset": config.dataset_name,
         "experiment": config.experiment_name,
         "configuration": config.configuration,
-        "split_seed": config.split_seed,
+        "split_seed": split_summary.get("split_seed") if split_summary else None,
+        "requested_split_seed": config.split_seed,
+        "split_strategy": split_summary.get("strategy"),
         "training_seed": config.training_seed,
         "demo_seed": config.demo_seed,
         "bootstrap_seed": config.bootstrap_seed,
@@ -156,10 +161,8 @@ def is_complete(run_dir: Path) -> bool:
 def _baseline_compare_path(config: ExperimentConfig) -> Path | None:
     if config.configuration == "reproduced_baseline":
         return None
-    candidate = (
-        Path(config.output_directory) / config.experiment_name / config.dataset_name
-        / "reproduced_baseline" / f"seed_{config.training_seed}" / "predictions.jsonl"
-    )
+    baseline = config_for_configuration(config, "reproduced_baseline")
+    candidate = baseline.run_directory / "predictions.jsonl"
     return candidate if candidate.exists() else None
 
 
@@ -219,11 +222,22 @@ def _validate_split_manifest(config: ExperimentConfig) -> str:
         raise FileNotFoundError(f"Split stage did not create {path}")
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    validate_split_integrity(rows)
-    test_rows = sorted(
-        (str(row["record_id"]), str(row["code_hash"])) for row in rows if str(row.get("split")) == "test"
-    )
-    return hashlib.sha256(json.dumps(test_rows, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return compute_test_split_fingerprint(rows)
+
+
+def _validate_paired_split_fingerprint(config: ExperimentConfig, fingerprint: str) -> None:
+    if config.experiment_name != "E01_multiseed" or config.configuration not in {"reproduced_baseline", "proposed"}:
+        return
+    counterpart_name = "proposed" if config.configuration == "reproduced_baseline" else "reproduced_baseline"
+    counterpart = config_for_configuration(config, counterpart_name)
+    counterpart_state = _read_json(counterpart.run_directory / "_pipeline" / "stage_state.json", {})
+    counterpart_fingerprint = counterpart_state.get("test_split_fingerprint")
+    if counterpart_fingerprint and str(counterpart_fingerprint) != fingerprint:
+        raise RuntimeError(
+            "E01 paired-arm split mismatch for "
+            f"dataset={config.dataset_name}, run_seed={config.training_seed}: "
+            f"{config.configuration}={fingerprint}, {counterpart_name}={counterpart_fingerprint}"
+        )
 
 
 def _collect_runtime(config: ExperimentConfig, stage_timings: dict[str, float]) -> dict[str, Any]:
@@ -234,6 +248,7 @@ def _collect_runtime(config: ExperimentConfig, stage_timings: dict[str, float]) 
         "dataset": config.dataset_name,
         "experiment": config.experiment_name,
         "configuration": config.configuration,
+        "split_seed": config.split_seed,
         "training_seed": config.training_seed,
         "stage_runtime_ms": stage_timings,
         "dataset_preprocessing_time_ms": stage_timings.get("preprocess"),
@@ -433,6 +448,7 @@ def run_one(
         stage_state.setdefault("completed", []).append(name)
         if name == "splits":
             stage_state["test_split_fingerprint"] = _validate_split_manifest(config)
+            _validate_paired_split_fingerprint(config, stage_state["test_split_fingerprint"])
         _write_json(stage_state_path, stage_state)
         elapsed_seconds = session_elapsed_seconds()
         remaining_seconds = None if session_budget_hours is None else max(session_budget_hours * 3600.0 - elapsed_seconds, 0.0)
@@ -445,10 +461,7 @@ def run_one(
         )
 
     runtime = _collect_runtime(config, stage_state.get("runtime_ms", {}))
-    baseline_runtime_path = (
-        Path(config.output_directory) / config.experiment_name / config.dataset_name
-        / "reproduced_baseline" / f"seed_{config.training_seed}" / "runtime.json"
-    )
+    baseline_runtime_path = config_for_configuration(config, "reproduced_baseline").run_directory / "runtime.json"
     if config.configuration != "reproduced_baseline" and baseline_runtime_path.exists():
         baseline_runtime = _read_json(baseline_runtime_path, {})
         proposed_total = float(runtime.get("total_runtime_ms") or 0.0)
@@ -493,6 +506,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    default_output_directory = (
+        "outputs/rerun_2408"
+        if set(args.experiment) == {"E01_multiseed"}
+        else "GRACE-improve/revision_results"
+    )
     base = load_config(
         args.config,
         split_seed=args.split_seed,
@@ -503,15 +521,17 @@ def main() -> None:
         split_seed=args.split_seed if args.split_seed is not None else 42,
         demo_seed=args.demo_seed if args.demo_seed is not None else 31415,
         bootstrap_seed=args.bootstrap_seed if args.bootstrap_seed is not None else 27182,
-        output_directory=args.output_directory or "GRACE-improve/revision_results",
+        output_directory=args.output_directory or default_output_directory,
     )
 
     statuses = []
     for experiment in args.experiment:
-        default_seeds = TRAINING_SEEDS if experiment == "E01_multiseed" else (42,)
+        default_seeds = RUN_SEEDS if experiment == "E01_multiseed" else (42,)
         for dataset in dict.fromkeys(args.dataset):
             for seed in dict.fromkeys(args.seed or default_seeds):
-                config = base.with_updates(dataset_name=dataset, experiment_name=experiment, training_seed=seed)
+                config = config_for_run_seed(
+                    base.with_updates(dataset_name=dataset, experiment_name=experiment), seed
+                )
                 requested_configs = args.configuration or configurations_for(experiment)
                 for configuration in requested_configs:
                     if configuration not in configurations_for(experiment):

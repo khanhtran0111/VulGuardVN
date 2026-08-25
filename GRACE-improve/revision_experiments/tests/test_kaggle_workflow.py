@@ -91,6 +91,40 @@ def make_run(root: Path, configuration: str) -> Path:
 
 
 class KaggleWorkflowTests(unittest.TestCase):
+    def test_run_metadata_records_resolved_split_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = ExperimentConfig(
+                dataset_name="devign",
+                experiment_name="E01_multiseed",
+                configuration="proposed",
+                training_seed=7,
+                split_seed=7,
+                output_directory=str(Path(temporary) / "results"),
+            )
+            split_summary = config.run_directory / "_pipeline" / "splits" / "devign" / "split_summary.json"
+            write_json(split_summary, {"strategy": "stratified_group_kfold", "split_seed": 7})
+            write_json(
+                config.run_directory / "_pipeline" / "stage_state.json",
+                {"test_split_fingerprint": "fingerprint-7"},
+            )
+            with patch.object(revision_runner, "_git_sha", return_value="fixture"), \
+                 patch.object(revision_runner, "_package_versions", return_value={}), \
+                 patch.object(revision_runner, "_hardware", return_value={}):
+                metadata = revision_runner.build_metadata(config, "complete")
+            self.assertEqual(metadata["split_seed"], 7)
+            self.assertEqual(metadata["requested_split_seed"], 7)
+            self.assertEqual(metadata["split_strategy"], "stratified_group_kfold")
+            self.assertEqual(metadata["test_split_fingerprint"], "fingerprint-7")
+            self.assertEqual(metadata["commit_sha"], "fixture")
+            write_json(split_summary, {"strategy": "official", "split_seed": None})
+            with patch.object(revision_runner, "_git_sha", return_value="fixture"), \
+                 patch.object(revision_runner, "_package_versions", return_value={}), \
+                 patch.object(revision_runner, "_hardware", return_value={}):
+                official_metadata = revision_runner.build_metadata(config, "complete")
+            self.assertIsNone(official_metadata["split_seed"])
+            self.assertEqual(official_metadata["requested_split_seed"], 7)
+            self.assertEqual(official_metadata["split_strategy"], "official")
+
     def test_exact_notebook_set_and_single_central_config(self):
         self.assertEqual(tuple(sorted(path.name for path in NOTEBOOK_DIR.glob("*.ipynb"))), EXPECTED_NOTEBOOKS)
         for name in EXPECTED_NOTEBOOKS:
@@ -131,6 +165,7 @@ class KaggleWorkflowTests(unittest.TestCase):
         baseline = config_for_configuration(base, "reproduced_baseline")
         self.assertTrue(baseline.force_inspect_all)
         self.assertTrue(baseline.call_llm_for_inspect)
+        self.assertTrue(baseline.call_llm_for_high)
         self.assertEqual(baseline.to_environment()["GRACE_FORCE_INSPECT_ALL"], "true")
         self.assertIsNone(baseline.tau_low)
         self.assertIsNone(baseline.tau_high)

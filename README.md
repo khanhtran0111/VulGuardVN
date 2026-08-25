@@ -10,8 +10,11 @@ The repository releases prediction-level artifacts for **Devign** and aggregate 
 | Artifact | Path | Role |
 | --- | --- | --- |
 | Main notebook | [full_pipeline.ipynb](full_pipeline.ipynb) | Canonical Kaggle-oriented pipeline; defaults to Devign and allows opt-in Big-Vul/ReVeal runs. |
-| Multi-seed experiment notebook | [GRACE-improve/grace-improve.ipynb](GRACE-improve/grace-improve.ipynb) | Devign-focused execution log for seeds 1, 7, 21, 42, and 100. |
+| Devign notebook | [GRACE-improve/grace-improve-devign.ipynb](GRACE-improve/grace-improve-devign.ipynb) | Devign-scoped copy of the pipeline with stage logging and prediction/evaluation export. |
+| Big-Vul notebook | [GRACE-improve/grace-improve-bigvul.ipynb](GRACE-improve/grace-improve-bigvul.ipynb) | Big-Vul-scoped copy of the pipeline with stage logging and prediction/evaluation export. |
+| ReVeal notebook | [GRACE-improve/grace-improve-reveal.ipynb](GRACE-improve/grace-improve-reveal.ipynb) | ReVeal-scoped copy of the pipeline with stage logging and prediction/evaluation export. |
 | Released results | [outputs/](outputs/) | Devign record-level predictions and run-state, plus summaries for all three datasets. |
+| Run-seed metrics | [outputs/runseed_metrics.csv](outputs/runseed_metrics.csv) | Historical per-run metrics for five repetitions, five seeds, and three datasets. |
 | BigVul summary | [outputs/bigvul_results_summary.json](outputs/bigvul_results_summary.json) | Aggregate metrics and routing counts. |
 | ReVeal summary | [outputs/reveal_results_summary.json](outputs/reveal_results_summary.json) | Aggregate metrics and routing counts. |
 | Stage scripts | [GRACE-improve/baseline/baseline2/](GRACE-improve/baseline/baseline2/) | Script implementation from asset verification through evaluation. |
@@ -33,6 +36,8 @@ The Devign snapshot contains 2,726 complete test predictions. Its confusion matr
 The released run used isotonic calibration with `tau_low=0.130435` and `tau_high=0.266667`. It routed 98 records to direct negative decisions, 348 to local-LLM inspection, and 2,280 to direct positive decisions. The mean generation latency was approximately 12.55 seconds per LLM call.
 
 BigVul and ReVeal do not include record-level predictions, confusion counts, calibration diagnostics, timing details, or run signatures. Their JSON summaries mark these unavailable fields explicitly rather than estimating them.
+
+`outputs/runseed_metrics.csv` contains 75 rows = 5 repetitions × 5 seeds × 3 datasets. `dataset` identifies the evaluated dataset; `repetition` identifies the repeated experiment; `seed` is the run seed; and `test_samples` is the number of evaluated test records. `accuracy`, `precision`, `recall`, and `f1` describe the final pipeline decisions. `prefilter_roc_auc` and `prefilter_pr_auc` are ranking metrics computed from the calibrated prefilter probabilities, not from the final discrete pipeline decisions. `llm_call_ratio` is the fraction of test records routed to the local LLM.
 
 ## Multi-Seed Robustness Check
 
@@ -137,6 +142,8 @@ The default notebook keeps TensorFlow prefilter work off the GPU so accelerator 
 
 The inference stage writes both JSONL and UTF-8-with-BOM CSV predictions. Full BigVul and ReVeal prediction artifacts can be too large for ordinary Git hosting and should be stored as release assets or in an external artifact repository.
 
+The E01 rerun harness defaults to isolated handoff directories under `outputs/rerun_2408/{dataset}/{seed}/{arm}/`, where `arm` is `baseline` or `selective`. Each arm retains `predictions.jsonl`, calibration thresholds and calibrator state, `config.json`, `run_metadata.json` (including commit and split provenance), `metrics.json`, `runtime.json`, and its private `_pipeline/` checkpoints/caches. Prediction rows use `record_id`, `ground_truth`, and the canonical final-decision field `prediction`; routing fields include `risk_band`, `decision_source`, `llm_called`, and `calibrated_probability`. The paired evaluator requires identical record-ID sets and matching ground-truth labels between the two arms before computing comparisons.
+
 ## Reproducibility and Limitations
 
 The committed Devign package supports prediction-level auditing, not complete training reproduction. It includes predictions, run configuration, metrics, routing fields, and latency fields. The BigVul and ReVeal packages support aggregate reporting only. The repository does not include:
@@ -148,7 +155,7 @@ The committed Devign package supports prediction-level auditing, not complete tr
 - local model snapshots;
 - baseline predictions aligned by `record_id`.
 
-The main seeds are 42 for dataset splitting, prefilter training, demonstration sampling, and F1 bootstrap; the inner split uses seed 43. Local-LLM decoding uses temperature 0.0. These settings reduce variation but do not guarantee bitwise determinism across TensorFlow, PyTorch, CUDA, model-library, and backend versions.
+The historical released snapshot used seed 42 for dataset splitting, prefilter training, demonstration sampling, and F1 bootstrap; its inner split used seed 43. For the new E01 protocol, each run seed in `{1, 7, 21, 42, 100}` is assigned to both `GRACE_SPLIT_SEED` and `GRACE_PREFILTER_RANDOM_SEED`. Baseline and Selective therefore share one partition within a seed, while generated grouped partitions may vary across seeds. ReVeal still preserves official or valid source-provided splits when available, so its resolved split seed is recorded as null when random splitting did not determine the partition. Local-LLM decoding uses temperature 0.0. These settings reduce variation but do not guarantee bitwise determinism across TensorFlow, PyTorch, CUDA, model-library, and backend versions.
 
 Because no aligned baseline predictions are released, the repository does not currently support McNemar or paired-bootstrap superiority claims. The BigVul and ReVeal summaries are evidence only for the reported aggregate values; they do not permit independent metric recomputation or prediction-level error analysis.
 
