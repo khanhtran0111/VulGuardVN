@@ -4,6 +4,8 @@ VulGuardVN is a function-level C/C++ vulnerability-detection research pipeline. 
 
 The repository releases prediction-level artifacts for **Devign** and aggregate result summaries for **BigVul** and **ReVeal**. Record-level outputs for the latter two datasets are not committed because they are substantially larger.
 
+**Paper:** [Deep Learning-Assisted Pre-Filtering for Selective Graph-Structured LLM-Based Vulnerability Detection](1571309665.pdf)
+
 
 ## Public Artifacts
 
