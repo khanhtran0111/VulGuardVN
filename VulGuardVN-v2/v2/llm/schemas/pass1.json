@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "hypotheses": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "cwe": {"type": "string"},
+          "sink_line": {"type": "integer"},
+          "variable": {"type": "string"},
+          "required_guard": {"type": "string"},
+          "rationale": {"type": "string"}
+        },
+        "required": ["cwe", "sink_line", "variable", "required_guard", "rationale"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["hypotheses"],
+  "additionalProperties": false
+}

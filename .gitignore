@@ -92,12 +92,26 @@ func/game
 dataset/
 research/
 
-GRACE-improve/data/
-GRACE-improve/eval/
-GRACE-improve/index/
-GRACE-improve/model/
-GRACE-improve/work/
-GRACE-improve/tools/
-GRACE-improve/baseline/artifacts
-GRACE-improve/baseline/artifacts
-GRACE-improve/baseline2/artifacts
+# Raw datasets at repo root (devign, bigvul, reveal, primevul).
+# Anchored with a leading slash so code folders like VulGuardVN-v2/**/data/ (loaders) are NOT ignored.
+/data/
+
+# VulGuardVN-v1 (formerly GRACE-improve) generated outputs
+VulGuardVN-v1/data/
+VulGuardVN-v1/eval/
+VulGuardVN-v1/index/
+VulGuardVN-v1/model/
+VulGuardVN-v1/work/
+VulGuardVN-v1/tools/
+VulGuardVN-v1/vulguardvn-final/
+VulGuardVN-v1/**/_downloads/
+VulGuardVN-v1/**/joern-cli/
+VulGuardVN-v1/baseline/**/artifacts/
+
+# VulGuardVN-v2 generated outputs (features, cpg_cache, llm_cache.jsonl, predictions, figures)
+VulGuardVN-v2/**/artifacts/
+VulGuardVN-v2/tools/
+VulGuardVN-v2/models/
+VulGuardVN-v2/v2/artifacts_smoke/
+VulGuardVN-v2/v2/artifacts_*/
+VulGuardVN-v2/VulGuard_v2_implementation_plan.md

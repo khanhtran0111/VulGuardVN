@@ -1,0 +1,53 @@
+# Datasets for VulGuard v2 (plan §3). Paths are relative to VulGuardVN-v2/.
+data_root: ../data
+split_seed: 42
+train_dev_fraction: 0.10          # train -> train-fit (90%) + train-dev (10%, early stopping only)
+conflict_policy: drop             # identical code with conflicting labels: drop the whole group
+max_code_chars: 60000             # functions longer than this are dropped (Joern/LLM unfriendly)
+
+datasets:
+  primevul:
+    loader: primevul
+    split: official               # official temporal split of PrimeVul v0.1
+    files:
+      train: primevul/primevul_train.jsonl
+      valid: primevul/primevul_valid.jsonl
+      test: primevul/primevul_test.jsonl
+    paired_files:
+      train: primevul/primevul_train_paired.jsonl
+      valid: primevul/primevul_valid_paired.jsonl
+      test: primevul/primevul_test_paired.jsonl
+    a_pool: {size: 3000, n_pos: 300}   # oversampled positives, re-weighted to the true rate (§3.2)
+    has_pairs: true
+
+  bigvul:
+    loader: bigvul
+    split: random_group
+    file: bigvul/MSR_data_cleaned.csv
+    ratios: {train: 0.8, valid: 0.1, test: 0.1}
+    a_pool: {size: 3000, n_pos: null}  # null = proportional stratified sample (plan default)
+    has_pairs: true
+
+  devign:
+    loader: devign
+    split: random_group
+    file: devign/function.json
+    ratios: {train: 0.8, valid: 0.1, test: 0.1}
+    a_pool: {fraction: 0.5}
+    has_pairs: false
+
+  reveal:
+    loader: reveal
+    split: official
+    files:
+      train: reveal/train-00000-of-00001.parquet
+      valid: reveal/validation-00000-of-00001.parquet
+      test: reveal/test-00000-of-00001.parquet
+    a_pool: {fraction: 0.5}
+    has_pairs: false
+
+# Dev set for prompt development (taken from train, §3.2)
+dev_set:
+  dataset: primevul
+  n_pairs: 100
+  n_random: 100

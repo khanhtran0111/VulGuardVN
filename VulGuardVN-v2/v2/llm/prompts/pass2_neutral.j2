@@ -1,0 +1,44 @@
+Task: verify one vulnerability hypothesis (Pass 2, neutral check).
+
+{% if hyp %}Hypothesis: {{ hyp.cwe }} at line {{ hyp.sink_line }} on variable `{{ hyp.variable }}`.
+Required guard: `{{ hyp.required_guard }}`.
+The hypothesis was produced automatically and may be wrong. Work through these steps:
+1. List every check on `{{ hyp.variable }}` (or on the values it is computed from) that runs before line {{ hyp.sink_line }}:
+   `if` / loop conditions, early `return` / `break` / `goto`, assertions (assert, BUG_ON, WARN_ON), clamping or
+   masking assignments, and validation done by helper calls whose name says so.
+2. Decide whether SOME path reaches line {{ hyp.sink_line }} without a check that enforces `{{ hyp.required_guard }}`
+   (watch for off-by-one: `<` vs `<=`, signed / unsigned, the size of the right buffer).
+3. If reference pairs are shown, compare: does this function look like the vulnerable version or like the fixed one?
+{% else %}Question: is there a line in this function where memory, integer or resource misuse is reachable without the guard
+that would make it safe? Pick the most likely sink, list the checks that run before it on each path, and decide.
+{% endif %}
+Answer "vulnerable" only if you can describe the concrete path that reaches the sink without the guard; otherwise
+answer "not_vulnerable". If a guard exists, give its line in `guard_line` (else null). `confidence` is your
+probability (0-1) that the function is vulnerable.
+
+{% if demos %}### Reference example(s) from other code{% for d in demos %}
+{% if d.patched %}Pair {{ loop.index }} ({{ d.cwe or "unknown CWE" }}) - vulnerable version:
+```c
+{{ d.vulnerable }}
+```
+the same code after the security fix:
+```c
+{{ d.patched }}
+```
+{% else %}Example {{ loop.index }} ({{ d.label_text }}{% if d.cwe %}, {{ d.cwe }}{% endif %}):
+```c
+{{ d.vulnerable }}
+```
+{% endif %}{% endfor %}
+{% endif %}
+### Slice around the sink
+```c
+{{ slice_text }}
+```
+
+### Full function{% if ctx.truncated %} (windows){% endif %}
+```c
+{{ ctx.code_view }}
+```
+
+Return JSON: {"verdict": "vulnerable" | "not_vulnerable", "evidence_lines": [<int>...], "sink": "<api or operator>", "guard_line": <int or null>, "confidence": <0-1>}

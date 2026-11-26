@@ -1,0 +1,39 @@
+# LLM layer (plan D2, §6.4). Frozen prompt hashes are written by `run_p4_llm.py freeze`.
+model: openai/gpt-oss-20b
+base_url: https://openrouter.ai/api/v1
+api_key_env: OPENROUTER_API_KEY
+provider: {order: [coreweave/fp4], allow_fallbacks: false, require_parameters: true}
+reasoning: {effort: low}         # D2. medium tried 2026-11-23 (dev: 0.12 vs 0.14, 3x cost, 5.6% truncated) and 2026-11-24 on Devign test (v2 F1 0.659 vs 0.658, LLM-layer bal.acc 0.530 vs 0.526, 4.1x cost; v2/artifacts_medium)
+temperature: 0
+seed: 42
+max_tokens: 16384              # output cap (only used tokens are billed); low effort answers are ~300-600 tokens
+concurrency: 12
+timeout_s: 180
+max_retries: 6
+spend_cap_usd: 95.0            # hard stop for the whole cache (OpenRouter cap is 100 USD)
+prompt_hashes: {pass1: d144fce8337cdb65, pass2_neutral: 3524c214d50c8a93, pass2_refute: 3506d008bbfd671a, zeroshot: 0b234000d8b1465a}
+price_snapshot: {date: 2026-11-22, input_per_m: 0.03, output_per_m: 0.13}
+
+# Model for RQ5 (verifier swap). Price is read from the response usage when available.
+rq5_model: openai/gpt-oss-120b
+rq5_provider: {order: [], allow_fallbacks: true, require_parameters: true}
+
+prompt:
+  max_code_lines: 400           # longer functions are shown as windows around sinks / suspicious lines
+  max_code_chars: 24000
+  max_sinks_shown: 12
+  max_slices_shown: 3
+  max_slice_lines: 40
+  max_suspicious_lines: 4
+
+retrieval:
+  top_k_pairs: 2                # 1-2 contrastive pairs (vulnerable + patched)
+  cwe_bonus: 0.15
+  sink_bonus: 0.10
+  context_lines: 3              # lines of context around the diff region of a demo pair
+  max_demo_lines: 30
+
+subsets:
+  api_subset_random: 2000       # + PrimeVul paired test (870) for A7/A8/RQ5 (§7.4)
+  uncertainty_n: 200            # P4 step 7: 200 functions x 3 repeated calls
+  uncertainty_repeats: 3

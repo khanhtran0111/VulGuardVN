@@ -1,0 +1,7 @@
+Task: decide whether the following C/C++ function contains a security vulnerability.
+
+```c
+{{ ctx.code_view }}
+```
+
+Return JSON: {"verdict": "vulnerable" | "not_vulnerable", "evidence_lines": [<int>...], "confidence": <probability 0-1 that it is vulnerable>}

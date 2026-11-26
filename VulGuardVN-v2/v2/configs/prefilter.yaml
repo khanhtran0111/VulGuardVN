@@ -1,0 +1,59 @@
+# Multi-view prefilter (plan §6.1). PyTorch implementation of the v1 4-view model.
+features:
+  token_vocab_size: 32000
+  token_seq_len: 384
+  ast_vocab_size: 2000
+  ast_seq_len: 256
+  min_freq: 2
+  unixcoder:
+    model_dir: models/unixcoder-base-nine
+    max_length: 512
+    token_budget: 8192        # tokens per batch (dynamic padding, sorted by length)
+    dtype: float32            # Quadro P2000 (Pascal) has very slow fp16 -> compute in fp32
+    chunk_size: 16384         # rows per resumable chunk
+  workers: 10                 # CPU processes for heuristic graph / numeric features
+
+finetune:                     # fine-tuned UniXcoder, cross-fitted -> 5th prefilter view + baseline B7 (local GPU)
+  folds: 5                    # K-fold cross-fitting on train: out-of-fold logits for train, K-model mean elsewhere
+  epochs: 2                   # 2026-11-26: back to 2 (3 epochs only memorised more: train AUC 0.845 vs held-out 0.745)
+  max_len: 512                # tokens (4 GB GPU, fp32 + gradient checkpointing; peak 2.4 GB). 2026-11-25: 320 -> 512
+  batch_size: 8
+  grad_accum: 4               # effective batch 32
+  length_bucketing: true      # sort by length inside random chunks, shuffle batches (less padding: ~1.1x cost of 320)
+  lr: 2.0e-5
+  lr_schedule: constant       # 2026-11-26: back to constant (linear + warm-up 6% with 3 epochs gave no gain)
+  warmup_ratio: 0.06          # only used with lr_schedule: linear
+  weight_decay: 0.01
+  max_neg: 30000              # per fold: all positives + at most this many negatives (large datasets)
+  pos_weight_cap: 20.0
+  seed: 42                    # fold k uses seed + k
+  save_models: true           # keep the K fold models (needed to re-score transformed code, P7 robustness)
+
+model:
+  views: [token, ast, semantic, numeric, finetune]
+  fusion: stacked             # 2026-11-26: network on the other views + logistic stack with the fine-tuned logit, fitted
+                              # on train_dev (prefilter/stacking.py). 'joint' = fine-tuned logit as a network input (A14)
+  token_embedding_dim: 96
+  token_filters: 96
+  ast_embedding_dim: 64
+  ast_filters: 64
+  projection_dim: 192
+  dense_units: 192
+  dropout: 0.25
+
+train:
+  batch_size: 256
+  max_epochs: 12
+  patience: 3                 # early stopping on train-dev PR-AUC
+  lr: 7.0e-4
+  weight_decay: 1.0e-5
+  pos_weight_cap: 20.0        # BCE positive weight = min(neg/pos, cap)
+  lambda_aux: 0.25            # weight of BCE_sem + BCE_gra
+  pair_mu: 0.5                # μ of the pairwise hinge loss
+  pair_margin: 0.2            # m of the pairwise hinge loss (on sigmoid scores)
+  pairs_per_batch: 16         # pairs appended to each batch (only for datasets with pairs)
+  reps: 5                     # 5 repetitions ...
+  seeds_per_rep: 5            # ... x ensemble of 5 seeds: rep r uses seeds {10r..10r+4}
+  num_workers: 0
+
+calibrators: [beta, temp, iso]

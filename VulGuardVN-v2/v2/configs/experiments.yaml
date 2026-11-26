@@ -1,0 +1,24 @@
+# Experiments (plan §7). Main configuration used for headline tables.
+main:
+  alpha: 0.01
+  operating_point: f1B                 # decision.yaml: f1B = theta max-F1 on B; cr5 = plan Bayes rule c_FN/c_FP = 5 (before 2026-11-25)
+  budget: 0.20
+  router: learned_guard                # learned router + guard (decision.yaml router_guard); 'learned' = no guard
+eval_cost_ratio: 5                     # expected cost in baselines / ablations is always reported at c_FN/c_FP = 5
+
+routers: [learned, learned_guard, oracle, uncertainty, random, two_threshold]
+bootstrap_samples: 10000
+ci: 0.95
+vds_fpr: 0.005                         # VD-S = FNR at FPR <= 0.5%
+
+ablations:
+  lovo_seeds: [10, 11, 12, 13, 14]     # A1: single models (no ensemble), 5 seeds per left-out view
+  nopair_reps: [1]                     # A3: retrain without pairwise loss (1 rep x 5 seeds by default)
+  joint_reps: [1]                      # A14 (fusion: stacked): fine-tuned logit as a network input, 1 rep x 5 seeds
+
+robustness:
+  n_functions: 2000
+  llm_n_functions: 1000                # optional (cloud)
+  seed: 7
+
+save_predictions_for: main             # 'main' = only main config per (dataset, rep); 'all' = every grid point

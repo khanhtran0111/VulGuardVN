@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": {"type": "string", "enum": ["vulnerable", "not_vulnerable"]},
+    "evidence_lines": {"type": "array", "items": {"type": "integer"}},
+    "confidence": {"type": "number"}
+  },
+  "required": ["verdict", "evidence_lines", "confidence"],
+  "additionalProperties": false
+}

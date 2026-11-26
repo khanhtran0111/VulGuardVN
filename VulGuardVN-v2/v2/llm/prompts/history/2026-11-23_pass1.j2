@@ -1,0 +1,28 @@
+Task: propose at most 3 concrete vulnerability hypotheses for the function below (Pass 1).
+
+A hypothesis names one sink line where memory/integer/resource misuse could happen, the variable that controls it,
+and the guard that would be REQUIRED to make that line safe (for example `len <= sizeof(buf)` or `ptr != NULL`).
+Order hypotheses from most to least likely. Return an empty list if no line looks plausibly vulnerable.
+Keep each rationale under 30 words.
+
+### Function{% if ctx.truncated %} (long function: only the relevant windows are shown){% endif %}
+```c
+{{ ctx.code_view }}
+```
+
+### Candidate sinks (from the code property graph)
+{% if ctx.sinks %}{% for s in ctx.sinks %}- line {{ s.line }}: {{ s.kind }} `{{ s.name }}` in `{{ s.code }}`
+{% endfor %}{% else %}- none found
+{% endif %}
+### Backward slices of the top sinks (data + control dependence)
+{% for sl in ctx.slices %}Slice for line {{ sl.sink_line }} ({{ sl.kind }} `{{ sl.sink }}`):
+```c
+{{ sl.text }}
+```
+{% else %}- none
+{% endfor %}
+### Suspicious lines (heuristic)
+{% for r in ctx.suspicious %}- line {{ r.line }}: `{{ r.code }}` ({{ r.reasons | join(", ") }})
+{% else %}- none
+{% endfor %}
+Return JSON: {"hypotheses": [{"cwe": "CWE-xxx", "sink_line": <int>, "variable": "<name>", "required_guard": "<C condition>", "rationale": "<= 30 words"}]}

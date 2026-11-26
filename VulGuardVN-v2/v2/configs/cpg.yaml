@@ -1,0 +1,17 @@
+# Joern / CPG (plan §5 P2, §6.5).
+joern_home: tools/joern-cli          # contains joern, joern-parse ...
+java_home: tools/jdk-21              # bundled JDK 21 (no system Java needed)
+joern_version: v4.0.674
+batch_size: 1000                     # functions per Joern project (one JVM per batch)
+workers: 2                           # parallel JVMs (each uses jvm_heap); 12 cores / 30 GB RAM
+jvm_heap: 9g
+batch_timeout_s: 3600
+max_candidate_sinks: 30
+max_slice_nodes: 400
+sink_apis: [memcpy, memmove, memset, strcpy, strncpy, strcat, strncat, sprintf, snprintf, vsprintf,
+            vsnprintf, gets, fgets, scanf, sscanf, fscanf, read, recv, recvfrom, fread, write, send,
+            malloc, calloc, realloc, alloca, free, kmalloc, kzalloc, kfree, vmalloc, strlen, strdup,
+            strndup, wcscpy, wcsncpy, bcopy, copy_from_user, copy_to_user, av_malloc, av_free,
+            g_malloc, g_free, xmalloc, system, popen, execl, execv, execve, printf, fprintf, syslog]
+alloc_apis: [malloc, calloc, realloc, alloca, kmalloc, kzalloc, vmalloc, av_malloc, g_malloc, xmalloc]
+source_apis: [read, recv, recvfrom, fread, fgets, gets, getenv, scanf, fscanf, sscanf, getc, fgetc, copy_from_user]

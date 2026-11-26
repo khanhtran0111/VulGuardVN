@@ -1,0 +1,32 @@
+# Decision layer (plan §6.2, §6.3).
+alphas: [0.005, 0.01, 0.02, 0.05]
+cost_ratios: [1, 3, 5, 10]            # c_FN / c_FP, with c_FP = 1
+main_cost_ratio: 5                    # theta* = 1/6 ~ 0.167
+calibrator: beta                      # p_hat used by Bayes rule / router (A4 swaps to iso)
+budgets: [0.0, 0.05, 0.10, 0.20, 0.40, 1.00]   # B as a fraction of test functions
+
+# Operating points besides the a-priori cost ratios above (2026-11-25, v2/decision/operating.py): theta chosen on B
+# (calibration split, never test) to maximise the objective of the prefilter decision; implied ratio (1-theta)/theta
+# drives the router target and the LLM mode. Grid = [lo, hi, step] of theta.
+operating_points:
+  f1B: {objective: f1, grid: [0.02, 0.98, 0.01]}
+
+# Router guard (2026-11-25): use the learned router at budget B only if its out-of-fold benefit on A at B is > 0,
+# else route nothing (B = 0), so v2 never does worse than the prefilter alone on A. Ablation A13 switches it off.
+router_guard: true
+
+router:
+  num_leaves: 31
+  learning_rate: 0.05
+  n_estimators: 500
+  min_child_samples: 20
+  cv_folds: 5
+  early_stopping_rounds: 30
+  subsample_fraction: 0.8             # 80% subsample of A per repetition (§7.5)
+
+# §6.5 table, refute mode without a Pass-1 hypothesis. The plan said 1; with the 2026-11-24 Pass-1 prompt (hypotheses
+# only for concrete missing checks) "no hypothesis" is evidence of safety: dev set refute P-C 0.05 -> 0.20 with 0.
+# The plan rule is kept as ablation A12.
+refute_without_hypothesis: 0
+
+joern_sources: [read, recv, recvfrom, fread, fgets, gets, getenv, scanf, fscanf, sscanf, getc, fgetc]

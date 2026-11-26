@@ -1,0 +1,41 @@
+Task: try to REFUTE one vulnerability hypothesis (Pass 2, refutation check).
+
+The hypothesis below was produced automatically and is often wrong: many flagged lines are in fact protected.
+{% if hyp %}Hypothesis: {{ hyp.cwe }} at line {{ hyp.sink_line }} on variable `{{ hyp.variable }}`.
+Required guard: `{{ hyp.required_guard }}`.
+Question: is line {{ hyp.sink_line }} protected on every path that reaches it? Look for any of:
+{% else %}Question: for the most dangerous sink in this function, is it protected on every path that reaches it? Look for any of:
+{% endif %}  - an explicit check before the sink (bounds / length / size / NULL / error-code check), including checks that
+    return, break or `goto` out of the function, or that guard the enclosing `if` / loop;
+  - a clamping or sanitising assignment (min()/MIN(), masking `&`, modulo `%`, ternary, `sizeof`, a fixed constant);
+  - a fixed-size buffer or constant index / length that makes the access safe by construction.
+Answer "not_vulnerable" if you find such a protection and put its line in `guard_line` (the line of the check or
+of the assignment). Answer "vulnerable" with `guard_line` = null only if some path really reaches the sink without
+any protection. `confidence` is your probability (0-1) that the function is vulnerable.
+
+{% if demos %}### Reference example(s) from other code{% for d in demos %}
+{% if d.patched %}Pair {{ loop.index }} ({{ d.cwe or "unknown CWE" }}) - vulnerable version:
+```c
+{{ d.vulnerable }}
+```
+the same code after the security fix:
+```c
+{{ d.patched }}
+```
+{% else %}Example {{ loop.index }} ({{ d.label_text }}{% if d.cwe %}, {{ d.cwe }}{% endif %}):
+```c
+{{ d.vulnerable }}
+```
+{% endif %}{% endfor %}
+{% endif %}
+### Slice around the sink
+```c
+{{ slice_text }}
+```
+
+### Full function{% if ctx.truncated %} (windows){% endif %}
+```c
+{{ ctx.code_view }}
+```
+
+Return JSON: {"verdict": "vulnerable" | "not_vulnerable", "evidence_lines": [<int>...], "sink": "<api or operator>", "guard_line": <int or null>, "confidence": <0-1>}

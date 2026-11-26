@@ -1,0 +1,33 @@
+Task: propose at most 3 concrete vulnerability hypotheses for the function below (Pass 1).
+
+Most functions are NOT vulnerable. Propose a hypothesis only when you can point to a concrete line where a specific
+check is missing, incomplete or off by one on SOME path through the code shown. Do not propose generic concerns
+(e.g. "the pointer could be NULL", "the length could be large") when the code already checks the value earlier on
+every path, when the value is a constant or a fixed-size local, or when the guard you would require is already present.
+
+A hypothesis names the sink line, the variable that controls it, and the guard that would be REQUIRED to make that
+line safe, written as a C condition (for example `len <= sizeof(buf)`, `idx < n`, `ptr != NULL`).
+Order hypotheses from most to least likely. Return an empty list if no line is plausibly vulnerable.
+Keep each rationale under 30 words and name the path that skips the guard.
+
+### Function{% if ctx.truncated %} (long function: only the relevant windows are shown){% endif %}
+```c
+{{ ctx.code_view }}
+```
+
+### Candidate sinks (from the code property graph)
+{% if ctx.sinks %}{% for s in ctx.sinks %}- line {{ s.line }}: {{ s.kind }} `{{ s.name }}` in `{{ s.code }}`
+{% endfor %}{% else %}- none found
+{% endif %}
+### Backward slices of the top sinks (data + control dependence)
+{% for sl in ctx.slices %}Slice for line {{ sl.sink_line }} ({{ sl.kind }} `{{ sl.sink }}`):
+```c
+{{ sl.text }}
+```
+{% else %}- none
+{% endfor %}
+### Suspicious lines (heuristic)
+{% for r in ctx.suspicious %}- line {{ r.line }}: `{{ r.code }}` ({{ r.reasons | join(", ") }})
+{% else %}- none
+{% endfor %}
+Return JSON: {"hypotheses": [{"cwe": "CWE-xxx", "sink_line": <int>, "variable": "<name>", "required_guard": "<C condition>", "rationale": "<= 30 words"}]}
