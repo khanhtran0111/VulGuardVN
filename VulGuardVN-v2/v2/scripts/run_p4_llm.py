@@ -306,7 +306,9 @@ def main() -> None:
                 layer.pass2(ids, p1, prefix="a7", use_hypothesis=False)          # A7: no Pass 1
                 layer.pass2(ids, p1, prefix="a8", single_demo=True)              # A8: single demo instead of a pair
             elif args.command == "rq5":
-                big = LLMLayer(dataset, model=cfg["rq5_model"], provider=dict(cfg["rq5_provider"]))
+                big = LLMLayer(dataset, model=cfg["rq5_model"], provider=dict(cfg["rq5_provider"]),
+                               max_tokens=cfg.get("rq5_max_tokens"),
+                               response_format=cfg.get("rq5_response_format"))
                 big._facts, big._contexts = layer._facts, layer._contexts
                 big.pass2(ids, p1, prefix="rq5")
             else:

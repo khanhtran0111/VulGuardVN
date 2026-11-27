@@ -79,13 +79,15 @@ def check_frozen(stages: list[str]) -> None:
 
 
 class LLMLayer:
-    def __init__(self, dataset: str, model: str | None = None, provider: dict | None = None) -> None:
+    def __init__(self, dataset: str, model: str | None = None, provider: dict | None = None,
+                 max_tokens: int | None = None, response_format: str | None = None) -> None:
         self.dataset = dataset
         self.cfg = load_config("llm")
         self.sink_apis = set(load_config("cpg")["sink_apis"])
         self.records = load_records(dataset, ["id", "code", "label", "subset", "split", "dev_set", "pair_id", "pair_role",
                                               "code_hash", "cwe", "in_main"]).set_index("id", drop=False)
-        self.client = LLMClient(dataset, self.cfg, model=model, provider=provider)
+        self.client = LLMClient(dataset, self.cfg, model=model, provider=provider, max_tokens=max_tokens,
+                                response_format=response_format)
         self._facts: dict[str, dict] = {}
         self._contexts: dict[str, dict] = {}
         self._retriever: Retriever | None = None

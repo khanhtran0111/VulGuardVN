@@ -7,6 +7,8 @@ reasoning: {effort: low}         # D2. medium tried 2026-11-23 (dev: 0.12 vs 0.1
 temperature: 0
 seed: 42
 max_tokens: 16384              # output cap (only used tokens are billed); low effort answers are ~300-600 tokens
+response_format: json_schema   # strict JSON schema (constrained decoding) for the main model
+invalid_retries: 2             # 2026-11-27: invalid JSON / finish=length -> ask again with seed+1, +2 (new calls only; cache keys unchanged)
 concurrency: 12
 timeout_s: 180
 max_retries: 6
@@ -16,7 +18,15 @@ price_snapshot: {date: 2026-11-22, input_per_m: 0.03, output_per_m: 0.13}
 
 # Model for RQ5 (verifier swap). Price is read from the response usage when available.
 rq5_model: openai/gpt-oss-120b
-rq5_provider: {order: [], allow_fallbacks: true, require_parameters: true}
+# Provider for 120b (2026-11-27 pilot + probes on the 97 Pass-1 prompts that failed):
+#   unpinned routing -> google-vertex drops the final '}' (client now closes it) and coreweave fails outright.
+#   coreweave/fp4 120b never returns reasoning tokens (0/197 calls; its 20b endpoint does, 22990/22990): the analysis
+#   channel is not split off, so the model "thinks" inside the answer -> strict json_schema: whitespace loop until
+#   max_tokens (31/97 still invalid after 2 retries); json_object: writes {"analysis": ...} (82/97 invalid).
+#   crusoe/bf16: 97/97 valid at the first attempt (1455/1455 in the pilot), ~2.7 s per call.
+rq5_provider: {order: [crusoe/bf16], allow_fallbacks: false, require_parameters: true}
+rq5_max_tokens: 4096           # valid 120b answers use <= ~900 tokens; caps the cost of a runaway answer before a retry
+rq5_response_format: json_schema   # json_object = no schema grammar, validated client-side (prompts spell out the JSON)
 
 prompt:
   max_code_lines: 400           # longer functions are shown as windows around sinks / suspicious lines

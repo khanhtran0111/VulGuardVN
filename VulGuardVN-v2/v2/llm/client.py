@@ -43,7 +43,41 @@ def cache_key(model: str, provider: dict, prompt_hash: str, messages: list[dict]
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
+def close_brackets(text: str) -> str | None:
+    """Append the closing brackets a provider dropped at the end of an otherwise complete JSON answer
+    (seen 2026-11-27 with gpt-oss-120b on google-vertex: the final '}' is missing). Only when the text ends outside a
+    string and every bracket seen so far matches; returns None when there is nothing safe to close."""
+    start = text.find("{")
+    if start < 0:
+        return None
+    stack, in_string, escaped = [], False, False
+    for ch in text[start:]:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append("}" if ch == "{" else "]")
+        elif ch in "}]":
+            if not stack or stack[-1] != ch:
+                return None
+            stack.pop()
+    if in_string or not stack:
+        return None
+    body = text[start:].rstrip()
+    if body.endswith(","):
+        body = body[:-1]
+    return body + "".join(reversed(stack))
+
+
 def parse_json(content: str | None, schema: dict) -> tuple[dict | None, str | None]:
+    """Parse + validate against the JSON schema. Last resort: close dropped trailing brackets (the repaired payload
+    must still validate, so a half-written answer is never accepted); error is then 'repaired'."""
     if not content:
         return None, "empty"
     text = content.strip()
@@ -51,13 +85,22 @@ def parse_json(content: str | None, schema: dict) -> tuple[dict | None, str | No
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match and match.group(0) != text:
         candidates.append(match.group(0))
+    error = None
     for candidate in candidates:
         try:
             payload = json.loads(candidate)
             jsonschema.validate(payload, schema)
             return payload, None
         except Exception as exc:  # noqa: BLE001
-            error = str(exc)[:200]
+            error = error or str(exc)[:200]
+    closed = close_brackets(text)
+    if closed is not None:
+        try:
+            payload = json.loads(closed)
+            jsonschema.validate(payload, schema)
+            return payload, "repaired"
+        except Exception:  # noqa: BLE001
+            pass
     return None, error
 
 
@@ -108,10 +151,17 @@ class SpendCapReached(RuntimeError):
 
 
 class LLMClient:
-    def __init__(self, dataset: str, cfg: dict | None = None, model: str | None = None, provider: dict | None = None) -> None:
+    def __init__(self, dataset: str, cfg: dict | None = None, model: str | None = None, provider: dict | None = None,
+                 max_tokens: int | None = None, response_format: str | None = None) -> None:
         self.cfg = cfg or load_config("llm")
         self.dataset = dataset
         self.model = model or self.cfg["model"]
+        self.max_tokens = int(max_tokens or self.cfg["max_tokens"])
+        self.invalid_retries = int(self.cfg.get("invalid_retries", 0))
+        # json_schema (strict, constrained decoding) or json_object (any JSON; the schema is checked here, in parse_json)
+        self.response_format = response_format or self.cfg.get("response_format", "json_schema")
+        if self.response_format not in {"json_schema", "json_object"}:
+            raise ValueError(f"response_format must be json_schema or json_object, got {self.response_format}")
         self.provider = provider if provider is not None else dict(self.cfg["provider"])
         self.mock = mock_mode()
         if self.mock:
@@ -129,8 +179,10 @@ class LLMClient:
             raise RuntimeError(f"{api_key_env} is empty - fill it in VulGuardVN-v2/.env (or use --mock)")
 
     def params(self, extra: dict | None = None) -> dict:
-        params = {"temperature": self.cfg["temperature"], "seed": self.cfg["seed"], "max_tokens": self.cfg["max_tokens"],
+        params = {"temperature": self.cfg["temperature"], "seed": self.cfg["seed"], "max_tokens": self.max_tokens,
                   "reasoning": self.cfg["reasoning"]}
+        if self.response_format != "json_schema":          # in the cache key only when not the default (keys unchanged)
+            params["response_format"] = self.response_format
         params.update(extra or {})
         return params
 
@@ -150,23 +202,44 @@ class LLMClient:
             if not self.mock and self.spent_before + self.spent_session >= self.cap:
                 raise SpendCapReached(f"spend cap {self.cap} USD reached")
             started = time.perf_counter()
-            if self.mock:
-                response = _mock_response(stage, messages, mock_hint or {}, self.price)
-            else:
-                response = await self._request(http, messages, schema, params)
+            # invalid answer (bad JSON, or finish_reason=length: e.g. the whitespace loop of constrained decoding seen
+            # 2026-11-27 on coreweave) -> ask again with seed+1, +2 ... (llm.yaml invalid_retries). The cache key
+            # stays the one of the original params; every attempt is billed into cost_usd / usage.
+            attempt, cost, usage = 0, 0.0, {"prompt_tokens": 0, "completion_tokens": 0, "reasoning_tokens": 0}
+            while True:
+                request_params = params if attempt == 0 else {**params, "seed": int(params["seed"]) + attempt}
+                if self.mock:
+                    response = _mock_response(stage, messages, mock_hint or {}, self.price)
+                else:
+                    response = await self._request(http, messages, schema, request_params)
+                if response is None:
+                    break
+                cost += float(response.get("cost_usd") or 0.0)
+                for name in usage:
+                    usage[name] += int((response.get("usage") or {}).get(name) or 0)
+                parsed, error = parse_json(response.get("content"), schema)
+                if error == "repaired" and response.get("finish_reason") == "length":
+                    parsed, error = None, "truncated at max_tokens"     # cut off: closing it would accept half an answer
+                if parsed is not None or attempt >= self.invalid_retries:
+                    break
+                log.info("[%s] %s %s: invalid answer from %s (finish=%s, %s) - retry %d/%d with seed %d", self.dataset,
+                         record_id, stage, response.get("provider"), response.get("finish_reason"), error,
+                         attempt + 1, self.invalid_retries, int(params["seed"]) + attempt + 1)
+                attempt += 1
             latency = time.perf_counter() - started
         if response is None:
             self.failures += 1
+            self.spent_session += cost
             return {"key": key, "id": record_id, "stage": stage, "status": "error", "parsed": None}
         content = response.get("content")
-        parsed, error = parse_json(content, schema)
         entry = {
             "key": key, "dataset": self.dataset, "id": record_id, "stage": stage, "model": self.model,
             "provider": response.get("provider"), "params": params, "prompt_hash": prompt_hash,
-            "content": content, "finish_reason": response.get("finish_reason"), "usage": response.get("usage", {}),
-            "cost_usd": response.get("cost_usd", 0.0), "latency_s": round(latency, 3),
+            "content": content, "finish_reason": response.get("finish_reason"), "usage": usage,
+            "cost_usd": cost, "latency_s": round(latency, 3),
             "timestamp": dt.datetime.now().isoformat(timespec="seconds"),
             "status": "ok" if parsed is not None else "invalid_json", "parse_error": error, "parsed": parsed,
+            "attempts": attempt + 1, "seed_used": int(request_params["seed"]), "repaired": error == "repaired",
         }
         self.cache.put(entry)
         self.calls += 1
@@ -178,7 +251,8 @@ class LLMClient:
             "model": self.model, "messages": messages, "provider": self.provider,
             "temperature": params["temperature"], "seed": params["seed"], "max_tokens": params["max_tokens"],
             "reasoning": params["reasoning"], "usage": {"include": True},
-            "response_format": {"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": schema}},
+            "response_format": ({"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": schema}}
+                                if self.response_format == "json_schema" else {"type": "json_object"}),
         }
         # params["repeat"] (P4 step 7) only changes the cache key; the request itself is identical
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json",
